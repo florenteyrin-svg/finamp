@@ -86,7 +86,6 @@ class AutoMixEngine {
   AudioPlayer get _main => _host.player;
 
   AudioPlayer? _overlay;
-  AndroidEqualizer? _overlayEq;
 
   /// Incremented to cancel any running transition.
   int _generation = 0;
@@ -264,21 +263,15 @@ class AutoMixEngine {
   /// just_audio player can't be touched again (their native objects are released).
   Future<AudioPlayer> _newOverlay() async {
     await _disposeOverlay();
-    final eq = AndroidEqualizer();
-    final overlay = AudioPlayer(
-      handleInterruptions: false,
-      handleAudioSessionActivation: false,
-      audioPipeline: AudioPipeline(androidAudioEffects: [eq]),
-    );
+    // no audio effects: Android's Equalizer isn't reliable on a second player
+    final overlay = AudioPlayer(handleInterruptions: false, handleAudioSessionActivation: false);
     _overlay = overlay;
-    _overlayEq = eq;
     return overlay;
   }
 
   Future<void> _disposeOverlay() async {
     final old = _overlay;
     _overlay = null;
-    _overlayEq = null;
     if (old != null) {
       try {
         await old.dispose();
@@ -314,7 +307,7 @@ class AutoMixEngine {
       _check(gen);
       _check(gen);
       const _BassControl? bassMain = null; // no equalizer on the main player (see _newOverlay)
-      _BassControl? bassOverlay;
+      const _BassControl? bassOverlay = null;
 
       // 2. start the overlay exactly when the main player reaches the same position
       await _waitForMainPosition(overlayStart, gen);
@@ -322,10 +315,7 @@ class AutoMixEngine {
       await _delay(min(300, overlayLead / 2), gen);
       if (overlayLead >= 1200) await _syncOverlayToMain(overlay, speed, gen);
 
-      // the overlay has an audio session now, its equalizer can be used
-      final eqOverlay = _overlayEq;
-      if (eqOverlay != null) bassOverlay = await _BassControl.create(eqOverlay);
-      _check(gen);
+      _trace("Deuxième lecteur synchronisé (écart ${(_main.position - overlay.position).inMilliseconds} ms)");
 
       // 3. handoff: main → overlay (same audio, so a very short crossfade is inaudible)
       await _waitForMainPosition(handoffAt, gen);
@@ -339,6 +329,7 @@ class AutoMixEngine {
       handedOff = true;
       await _main.pause();
       await _main.seek(Duration(milliseconds: plan.inStartMs.round()), index: planned.nextIndex);
+      _trace("Passage au morceau suivant (en attente du bon moment)");
       // let the player report its new (buffering) state before polling it
       await _delay(120, gen);
       final incomingSpeed = speed * plan.incomingRate;
@@ -355,17 +346,24 @@ class AutoMixEngine {
       _check(gen);
       if (!ready) {
         _logger.warning("Incoming track not ready in time, falling back to a simple fade");
+        _trace("Morceau suivant pas encore chargé → fondu simple");
         await _lateEntry(planned, overlay, outVolume, speed, gen, bassMain, bassOverlay);
+        _status("Transition terminée (fondu simple, chargement trop lent)");
+        unawaited(_disposeOverlay());
         return;
       }
       final cueDelay = (plan.outMixStartMs - overlay.position.inMilliseconds) / speed;
       if (cueDelay > 0) await _delay(cueDelay, gen);
       unawaited(_main.play());
       _setHolding(false);
+      _trace(
+        "Morceau suivant lancé${plan.mode == AutoMixMode.beatmatch ? " sur le beat, tempo ×${plan.incomingRate.toStringAsFixed(3)}" : ""}",
+      );
 
       // 5. automate volumes, bass and tempo until the outgoing track is gone
       final startedAt = DateTime.now();
       var lastPhaseFix = DateTime.now();
+      var lastPhaseLog = DateTime(2000);
       while (true) {
         _check(gen);
         final outPos = overlay.position.inMilliseconds.toDouble();
@@ -380,7 +378,11 @@ class AutoMixEngine {
             DateTime.now().difference(startedAt).inMilliseconds > 250 &&
             DateTime.now().difference(lastPhaseFix).inMilliseconds >= 200) {
           lastPhaseFix = DateTime.now();
-          await _fixPhase(plan, overlay, incomingSpeed);
+          final err = await _fixPhase(plan, overlay, incomingSpeed);
+          if (err != null && DateTime.now().difference(lastPhaseLog).inMilliseconds >= 1000) {
+            lastPhaseLog = DateTime.now();
+            _trace("Calage : décalage ${err.round()} ms, vitesse ${_main.speed.toStringAsFixed(3)}");
+          }
         }
         await _delay(40, gen);
       }
@@ -451,10 +453,11 @@ class AutoMixEngine {
   }
 
   /// Keeps the incoming beats on top of the outgoing ones by slightly nudging the incoming tempo.
-  Future<void> _fixPhase(AutoMixPlan plan, AudioPlayer overlay, double incomingSpeed) async {
-    if (!_main.playing || _main.processingState != ProcessingState.ready) return;
+  /// Returns the measured phase error (ms), or null if it couldn't be measured.
+  Future<double?> _fixPhase(AutoMixPlan plan, AudioPlayer overlay, double incomingSpeed) async {
+    if (!_main.playing || _main.processingState != ProcessingState.ready) return null;
     final period = plan.inBeatPeriodMs;
-    if (period == null) return;
+    if (period == null) return null;
     final outPos = overlay.position.inMilliseconds.toDouble();
     final expected = plan.inStartMs + (outPos - plan.outMixStartMs) * plan.incomingRate;
     var error = _main.position.inMilliseconds - expected;
@@ -466,6 +469,7 @@ class AutoMixEngine {
       target = incomingSpeed * (1 - (error / 1200).clamp(-0.03, 0.03));
     }
     if ((target - _main.speed).abs() > 0.0005) await _main.setSpeed(target);
+    return error;
   }
 
   Future<void> _syncOverlayToMain(AudioPlayer overlay, double speed, int gen) async {
@@ -660,6 +664,7 @@ class _BassControl {
   double _current = -1;
   bool _enabled = false;
 
+  // ignore: unused_element
   static Future<_BassControl?> create(AndroidEqualizer eq) async {
     try {
       final params = await eq.parameters.timeout(const Duration(seconds: 2));
