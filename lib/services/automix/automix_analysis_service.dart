@@ -47,7 +47,10 @@ class AutoMixAnalysisService {
     if (failedAt != null && DateTime.now().difference(failedAt) < const Duration(minutes: 10)) {
       return Future.value(null);
     }
-    final future = _analyze(itemId, uri, durationMs).whenComplete(() => _inFlight.remove(itemId));
+    // NB: the callback must not return the removed future, whenComplete would wait for it (deadlock)
+    final future = _analyze(itemId, uri, durationMs).whenComplete(() {
+      _inFlight.remove(itemId);
+    });
     _inFlight[itemId] = future;
     return future;
   }
