@@ -15,6 +15,7 @@ class AutoMixRegion {
     required this.energyRate,
     required this.energyDb,
     required this.lowEnergyDb,
+    this.vocalDb = const [],
   });
 
   final double startMs;
@@ -29,6 +30,9 @@ class AutoMixRegion {
   final double energyRate;
   final List<double> energyDb;
   final List<double> lowEnergyDb;
+
+  /// Energy of the voice band (300-3400 Hz), same rate as [energyDb]. May be empty.
+  final List<double> vocalDb;
 
   double get endMs => startMs + lengthMs;
   double get frameMs => 1000.0 / energyRate;
@@ -91,6 +95,7 @@ class AutoMixRegion {
       energyRate: (map["energyRate"] as num).toDouble(),
       energyDb: list(map["energyDb"]),
       lowEnergyDb: list(map["lowEnergyDb"]),
+      vocalDb: list(map["vocalEnergyDb"]),
     );
   }
 
@@ -105,7 +110,74 @@ class AutoMixRegion {
     "energyRate": energyRate,
     "energyDb": energyDb.map((e) => double.parse(e.toStringAsFixed(1))).toList(),
     "lowEnergyDb": lowEnergyDb.map((e) => double.parse(e.toStringAsFixed(1))).toList(),
+    "vocalEnergyDb": vocalDb.map((e) => double.parse(e.toStringAsFixed(1))).toList(),
   };
+
+  /// Rough "someone is singing/rapping" detector, per energy frame.
+  /// Voice-band share of the total energy, compared to its typical value in this region,
+  /// smoothed over ~0.6 s. Returns an empty list when there's no voice band data.
+  List<bool> vocalActivity() {
+    final n = min(vocalDb.length, energyDb.length);
+    if (n < 20) return const [];
+    final loud = loudDb;
+    final ratio = [for (var i = 0; i < n; i++) vocalDb[i] - energyDb[i]];
+    final sorted = [...ratio]..sort();
+    // baseline: the voice share in the least "vocal" tenth of the region (instrumental parts)
+    final baseline = sorted[(sorted.length * 0.1).floor()];
+    final half = max(1, (300 / frameMs).round());
+    final out = List<bool>.filled(n, false);
+    for (var i = 0; i < n; i++) {
+      var sum = 0.0;
+      var c = 0;
+      for (var j = max(0, i - half); j <= min(n - 1, i + half); j++) {
+        sum += ratio[j];
+        c++;
+      }
+      final r = sum / c;
+      // voice band clearly above its usual share, and the track is reasonably loud
+      out[i] = r > baseline + 4 && vocalDb[i] > loud - 22 && energyDb[i] > loud - 20;
+    }
+    return out;
+  }
+
+  /// Time (ms) of the end of the last vocal phrase in this region, or null.
+  /// A phrase must last at least [minPhraseMs] to count.
+  double? lastVocalEndMs({double minPhraseMs = 1200}) {
+    final act = vocalActivity();
+    var run = 0;
+    for (var i = act.length - 1; i >= 0; i--) {
+      if (act[i]) {
+        run++;
+        if (run * frameMs >= minPhraseMs) {
+          // walk forward to the end of this phrase
+          var j = i;
+          while (j + 1 < act.length && act[j + 1]) {
+            j++;
+          }
+          return timeOfFrame(j + 1);
+        }
+      } else {
+        run = 0;
+      }
+    }
+    return null;
+  }
+
+  /// Time (ms) of the start of the first vocal phrase at or after [fromMs], or null.
+  double? firstVocalStartMs({double fromMs = 0, double minPhraseMs = 1200}) {
+    final act = vocalActivity();
+    var run = 0;
+    for (var i = 0; i < act.length; i++) {
+      if (timeOfFrame(i) < fromMs) continue;
+      if (act[i]) {
+        run++;
+        if (run * frameMs >= minPhraseMs) return timeOfFrame(i - run + 1);
+      } else {
+        run = 0;
+      }
+    }
+    return null;
+  }
 }
 
 class AutoMixAnalysis {
@@ -115,7 +187,7 @@ class AutoMixAnalysis {
   final AutoMixRegion head;
   final AutoMixRegion? tail;
 
-  static const int formatVersion = 1;
+  static const int formatVersion = 2;
 
   factory AutoMixAnalysis.fromMap(Map<dynamic, dynamic> map) => AutoMixAnalysis(
     durationMs: (map["durationMs"] as num?)?.toDouble(),
@@ -150,6 +222,9 @@ class AutoMixPlan {
     required this.outEndMs,
     required this.inStartMs,
     required this.incomingRate,
+    this.outgoingRate = 1,
+    this.beatRatio,
+    this.vocalAligned = false,
     required this.bassSwapFraction,
     required this.inFadeFraction,
     required this.outFadeStartFraction,
@@ -172,6 +247,15 @@ class AutoMixPlan {
   /// Playback rate of the incoming track during the transition, relative to the
   /// user's speed (tempo matching). Ramped back to 1 after the transition.
   final double incomingRate;
+
+  /// Playback rate the outgoing track ramps to before the incoming one starts (tempo ramp).
+  final double outgoingRate;
+
+  /// Incoming track time per outgoing track time while beats are locked (in beat / out beat).
+  final double? beatRatio;
+
+  /// The transition is placed so the incoming vocals start right after the outgoing ones end.
+  final bool vocalAligned;
 
   /// Fraction (0..1) of the transition at which the low end is handed over from
   /// the outgoing track to the incoming one. null = no bass swap.
@@ -231,5 +315,5 @@ class AutoMixPlan {
 
   @override
   String toString() =>
-      "AutoMixPlan($description: out ${outMixStartMs.round()}→${outEndMs.round()}ms, in from ${inStartMs.round()}ms, rate ${incomingRate.toStringAsFixed(3)})";
+      "AutoMixPlan($description: out ${outMixStartMs.round()}→${outEndMs.round()}ms, in from ${inStartMs.round()}ms, rates out ${outgoingRate.toStringAsFixed(3)} in ${incomingRate.toStringAsFixed(3)})";
 }

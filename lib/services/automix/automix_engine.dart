@@ -216,6 +216,7 @@ class AutoMixEngine {
 
   static const _overlayLeadMs = 2000.0; // overlay plays in sync before the handoff
   static const _handoffLeadMs = 3500.0; // handoff happens this long before the mix point
+  static const _rampMs = 5000.0; // duration of the outgoing tempo ramp (track time)
   static const _prepareLeadMs = 3000.0; // overlay gets loaded this long before it starts
 
   void _onPosition(Duration position) {
@@ -224,7 +225,9 @@ class AutoMixEngine {
     if (!_main.playing || _main.processingState != ProcessingState.ready) return;
     final pos = position.inMilliseconds.toDouble();
     final mixStart = planned.plan.outMixStartMs;
-    final startAt = mixStart - _handoffLeadMs - _overlayLeadMs - _prepareLeadMs;
+    final rampLead = planned.plan.outgoingRate != 1 ? _rampMs + 1500 : 0.0;
+    final maxHandoffLead = max(_handoffLeadMs, rampLead);
+    final startAt = mixStart - maxHandoffLead - _overlayLeadMs - _prepareLeadMs;
     if (pos < startAt) return;
     // time left before the mix point; shorter leads when the user jumped close to the end
     final available = mixStart - pos;
@@ -236,7 +239,7 @@ class AutoMixEngine {
       }
       return;
     }
-    final handoffLead = min(_handoffLeadMs, max(1500.0, (available - 1200) * 0.55));
+    final handoffLead = min(maxHandoffLead, max(1500.0, (available - 1200) * 0.55));
     final overlayLead = min(_overlayLeadMs, max(500.0, available - 1200 - handoffLead));
     if (!_host.isAllowed()) return;
     // the queue must still be what we planned for
@@ -334,6 +337,11 @@ class AutoMixEngine {
       await _delay(120, gen);
       final incomingSpeed = speed * plan.incomingRate;
       if (incomingSpeed != speed) await _main.setSpeed(incomingSpeed);
+      if (plan.outgoingRate != 1) {
+        final rampTime = max(500.0, (plan.outMixStartMs - overlay.position.inMilliseconds - 400) / speed);
+        _trace("Rampe de tempo du morceau actuel : ×${plan.outgoingRate.toStringAsFixed(3)} en ${(rampTime / 1000).toStringAsFixed(1)} s");
+        unawaited(_rampOverlaySpeed(overlay, speed, speed * plan.outgoingRate, rampTime, gen));
+      }
       await bassMain?.setCut(plan.incomingBassCut(0));
       await bassOverlay?.setCut(plan.outgoingBassCut(0));
 
@@ -352,12 +360,12 @@ class AutoMixEngine {
         unawaited(_disposeOverlay());
         return;
       }
-      final cueDelay = (plan.outMixStartMs - overlay.position.inMilliseconds) / speed;
+      final cueDelay = (plan.outMixStartMs - overlay.position.inMilliseconds) / overlay.speed;
       if (cueDelay > 0) await _delay(cueDelay, gen);
       unawaited(_main.play());
       _setHolding(false);
       _trace(
-        "Morceau suivant lancé${plan.mode == AutoMixMode.beatmatch ? " sur le beat, tempo ×${plan.incomingRate.toStringAsFixed(3)}" : ""}",
+        "Morceau suivant lancé${plan.mode == AutoMixMode.beatmatch ? " sur le beat, tempo ×${plan.incomingRate.toStringAsFixed(3)}${plan.vocalAligned ? ", voix calées" : ""}" : ""}",
       );
 
       // 5. automate volumes, bass and tempo until the outgoing track is gone
@@ -459,7 +467,7 @@ class AutoMixEngine {
     final period = plan.inBeatPeriodMs;
     if (period == null) return null;
     final outPos = overlay.position.inMilliseconds.toDouble();
-    final expected = plan.inStartMs + (outPos - plan.outMixStartMs) * plan.incomingRate;
+    final expected = plan.inStartMs + (outPos - plan.outMixStartMs) * (plan.beatRatio ?? plan.incomingRate);
     var error = _main.position.inMilliseconds - expected;
     // only the phase within a beat matters
     error = error - period * (error / period).roundToDouble();
@@ -485,6 +493,22 @@ class AutoMixEngine {
     }
   }
 
+  /// Smoothly changes the overlay (outgoing track) speed over [durationMs] of wall time.
+  Future<void> _rampOverlaySpeed(AudioPlayer overlay, double from, double to, double durationMs, int gen) async {
+    final steps = max(1, (durationMs / 100).round());
+    for (var k = 1; k <= steps; k++) {
+      if (gen != _generation || _overlay != overlay) return;
+      final t = k / steps;
+      final eased = t * t * (3 - 2 * t);
+      try {
+        await overlay.setSpeed(from + (to - from) * eased);
+      } catch (_) {
+        return;
+      }
+      await Future<void>.delayed(Duration(milliseconds: (durationMs / steps).round()));
+    }
+  }
+
   void _rampSpeedBack({required double from, required double to}) {
     _speedRamp?.cancel();
     if ((from - to).abs() < 0.0005) {
@@ -492,7 +516,7 @@ class AutoMixEngine {
       _restoreSpeed = null;
       return;
     }
-    const steps = 40; // 8 s
+    final steps = (from - to).abs() > 0.03 ? 60 : 40; // 12 s for big changes, else 8 s
     var k = 0;
     _speedRamp = Timer.periodic(const Duration(milliseconds: 200), (t) {
       k++;

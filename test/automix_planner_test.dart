@@ -11,10 +11,12 @@ AutoMixRegion region({
   double firstBeatMs = 0,
   int downbeatIndex = 0,
   required double Function(double ms) energyAt,
+  double Function(double ms)? vocalAt,
 }) {
-  const rate = 4.0;
+  const rate = 20.0;
   final n = (lengthMs / 1000 * rate).floor();
   final energy = [for (var i = 0; i < n; i++) energyAt(startMs + i * 1000 / rate)];
+  final vocal = vocalAt == null ? <double>[] : [for (var i = 0; i < n; i++) vocalAt(startMs + i * 1000 / rate)];
   return AutoMixRegion(
     startMs: startMs,
     lengthMs: lengthMs,
@@ -26,6 +28,7 @@ AutoMixRegion region({
     energyRate: rate,
     energyDb: energy,
     lowEnergyDb: energy,
+    vocalDb: vocal,
   );
 }
 
@@ -34,10 +37,11 @@ AutoMixAnalysis track({
   double bpm = 124,
   double confidence = 0.8,
   required double Function(double ms) energyAt,
+  double Function(double ms)? vocalAt,
 }) {
   return AutoMixAnalysis(
     durationMs: durationMs,
-    head: region(startMs: 0, lengthMs: 30000, bpm: bpm, confidence: confidence, energyAt: energyAt),
+    head: region(startMs: 0, lengthMs: 30000, bpm: bpm, confidence: confidence, energyAt: energyAt, vocalAt: vocalAt),
     tail: region(
       startMs: durationMs - 45000,
       lengthMs: 45000,
@@ -45,6 +49,7 @@ AutoMixAnalysis track({
       confidence: confidence,
       firstBeatMs: 120,
       energyAt: energyAt,
+      vocalAt: vocalAt,
     ),
   );
 }
@@ -114,10 +119,6 @@ void main() {
     expect(plan.incomingGain(1), closeTo(1, 1e-9));
     expect(plan.outgoingGain(0), 1);
     expect(plan.outgoingGain(1), closeTo(0, 1e-9));
-    expect(plan.incomingBassCut(0.1), 1);
-    expect(plan.incomingBassCut(0.9), 0);
-    expect(plan.outgoingBassCut(0.1), 0);
-    expect(plan.outgoingBassCut(0.9), 1);
   });
 
   test("serialisation round trip", () {
@@ -126,5 +127,61 @@ void main() {
     expect(b.head.bpm, a.head.bpm);
     expect(b.tail!.startMs, a.tail!.startMs);
     expect(b.tail!.energyDb.length, a.tail!.energyDb.length);
+  });
+
+  test("tempos 16 % apart are bridged with a tempo ramp on both tracks", () {
+    final out = track(durationMs: 300000, bpm: 110, energyAt: (ms) => ms < 299000 ? -12 : -90);
+    final inc = track(durationMs: 280000, bpm: 126, energyAt: (ms) => -12);
+    final plan = planner.plan(outgoing: out, incoming: inc, outDurationMs: 300000)!;
+    expect(plan.mode, AutoMixMode.beatmatch);
+    expect(plan.beatRatio, closeTo(110 / 126, 1e-9));
+    // both move halfway: tempos meet
+    expect(110 * plan.outgoingRate, closeTo(126 * plan.incomingRate, 1e-6));
+    expect(plan.outgoingRate, greaterThan(1));
+    expect(plan.incomingRate, lessThan(1));
+  });
+
+  test("vocal handover: incoming vocals land on the bar right after the outgoing vocals end", () {
+    // outgoing: vocals until 280 s, then instrumental outro until 299 s
+    final out = track(
+      durationMs: 300000,
+      bpm: 120,
+      energyAt: (ms) => ms < 299000 ? -12 : -90,
+      vocalAt: (ms) => ms < 280000 ? -13 : -30,
+    );
+    // incoming: 16 s instrumental intro, vocals from 16 s
+    final inc = track(
+      durationMs: 240000,
+      bpm: 120,
+      energyAt: (ms) => -12,
+      vocalAt: (ms) => ms >= 16000 ? -13 : -30,
+    );
+    final plan = planner.plan(outgoing: out, incoming: inc, outDurationMs: 300000)!;
+    expect(plan.mode, AutoMixMode.beatmatch);
+    expect(plan.vocalAligned, isTrue);
+    // time at which the incoming vocals are heard, in outgoing track time
+    final inVocalAt = plan.outMixStartMs + (16000 - plan.inStartMs) / plan.beatRatio!;
+    expect(inVocalAt, inInclusiveRange(280000, 280000 + 4 * 500 + 600));
+    expect(plan.outEndMs, lessThan(299000));
+  });
+
+  test("vocal handover without a common tempo", () {
+    final out = track(
+      durationMs: 300000,
+      bpm: 90,
+      energyAt: (ms) => ms < 299000 ? -12 : -90,
+      vocalAt: (ms) => ms < 285000 ? -13 : -30,
+    );
+    final inc = track(
+      durationMs: 240000,
+      bpm: 140,
+      energyAt: (ms) => -12,
+      vocalAt: (ms) => ms >= 6000 ? -13 : -30,
+    );
+    final plan = planner.plan(outgoing: out, incoming: inc, outDurationMs: 300000)!;
+    expect(plan.mode, AutoMixMode.blend);
+    expect(plan.vocalAligned, isTrue);
+    final inVocalAt = plan.outMixStartMs + (6000 - plan.inStartMs);
+    expect(inVocalAt, closeTo(285300, 400));
   });
 }

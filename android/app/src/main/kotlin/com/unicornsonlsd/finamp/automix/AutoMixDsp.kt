@@ -44,6 +44,8 @@ object AutoMixDsp {
         val energyDb: DoubleArray,
         /** Loudness of the low band (< ~150 Hz) in dBFS, [ENERGY_RATE] values per second. */
         val lowEnergyDb: DoubleArray,
+        /** Loudness of the voice band (~300-3400 Hz) in dBFS, [ENERGY_RATE] values per second. */
+        val vocalEnergyDb: DoubleArray,
     )
 
     /** Simple biquad filter (RBJ cookbook). */
@@ -104,25 +106,32 @@ object AutoMixDsp {
         val low2 = Biquad(Biquad.LOWPASS, 150.0, 0.707, sampleRate)
         val mid = Biquad(Biquad.BANDPASS, 800.0, 0.6, sampleRate)
         val high = Biquad(Biquad.HIGHPASS, 2500.0, 0.707, sampleRate)
+        val vocHp1 = Biquad(Biquad.HIGHPASS, 300.0, 0.707, sampleRate)
+        val vocHp2 = Biquad(Biquad.HIGHPASS, 300.0, 0.707, sampleRate)
+        val vocLp1 = Biquad(Biquad.LOWPASS, 3400.0, 0.707, sampleRate)
+        val vocLp2 = Biquad(Biquad.LOWPASS, 3400.0, 0.707, sampleRate)
 
         val eLow = DoubleArray(frames)
         val eMid = DoubleArray(frames)
         val eHigh = DoubleArray(frames)
         val eAll = DoubleArray(frames)
+        val eVoc = DoubleArray(frames)
         for (f in 0 until frames) {
             var sl = 0.0
             var sm = 0.0
             var sh = 0.0
             var sa = 0.0
+            var sv = 0.0
             val base = f * hop
             for (i in 0 until hop) {
                 val x = samples[base + i].toDouble()
                 val l = low2.process(low.process(x))
                 val m = mid.process(x)
                 val h = high.process(x)
-                sl += l * l; sm += m * m; sh += h * h; sa += x * x
+                val v = vocLp2.process(vocLp1.process(vocHp2.process(vocHp1.process(x))))
+                sl += l * l; sm += m * m; sh += h * h; sa += x * x; sv += v * v
             }
-            eLow[f] = sl / hop; eMid[f] = sm / hop; eHigh[f] = sh / hop; eAll[f] = sa / hop
+            eLow[f] = sl / hop; eMid[f] = sm / hop; eHigh[f] = sh / hop; eAll[f] = sa / hop; eVoc[f] = sv / hop
         }
 
         // --- onset envelope: weighted sum of log-energy rises per band ---
@@ -142,8 +151,9 @@ object AutoMixDsp {
 
         val energyDb = energyCurve(eAll, envRate)
         val lowEnergyDb = energyCurve(eLow, envRate)
+        val vocalEnergyDb = energyCurve(eVoc, envRate)
 
-        val empty = Result(0.0, 0.0, 0.0, 0, 0.0, energyDb, lowEnergyDb)
+        val empty = Result(0.0, 0.0, 0.0, 0, 0.0, energyDb, lowEnergyDb, vocalEnergyDb)
         if (frames < envRate * 6) return empty // not enough material for a tempo
         var envMean = 0.0
         for (v in env) envMean += v
@@ -218,6 +228,7 @@ object AutoMixDsp {
             confidence = confidence,
             energyDb = energyDb,
             lowEnergyDb = lowEnergyDb,
+            vocalEnergyDb = vocalEnergyDb,
         )
     }
 

@@ -276,6 +276,7 @@ object AutoMixAnalyzer {
             "energyRate" to AutoMixDsp.ENERGY_RATE,
             "energyDb" to r.energyDb.toList(),
             "lowEnergyDb" to r.lowEnergyDb.toList(),
+            "vocalEnergyDb" to r.vocalEnergyDb.toList(),
         )
     }
 

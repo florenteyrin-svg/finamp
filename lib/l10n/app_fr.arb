@@ -3709,5 +3709,5 @@
     "autoMixKeepAlbumsGaplessTitle": "Albums sans mix",
     "autoMixKeepAlbumsGaplessSubtitle": "Ne pas mixer quand le morceau suivant est la suite du même album (live, mixtapes, albums concept).",
     "autoMixAllowTempoChangeTitle": "Caler le tempo",
-    "autoMixAllowTempoChangeSubtitle": "Accélère ou ralentit légèrement le morceau suivant (6 % max) pour caler les beats. La tonalité ne change pas."
+    "autoMixAllowTempoChangeSubtitle": "Rampe de tempo progressive (jusqu'à 16 % d'écart, la moitié sur chaque morceau) pour caler les beats. La tonalité ne change pas."
 }

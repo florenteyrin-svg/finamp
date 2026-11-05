@@ -9,8 +9,11 @@ class AutoMixPlanner {
 
   final bool allowTempoChange;
 
-  /// Max tempo change applied to the incoming track (±).
-  static const maxRateChange = 0.06;
+  /// Max tempo difference that is bridged with a tempo ramp (±). Each track moves half of it.
+  static const maxRateChange = 0.16;
+
+  /// Below this, only the incoming track is adjusted (no ramp on the outgoing one).
+  static const smallRateChange = 0.03;
   static const minBeatConfidence = 0.45;
 
   /// [outDurationMs] is the duration of the outgoing track as known by the player.
@@ -46,14 +49,48 @@ class AutoMixPlanner {
     final inIntroLengthMs = max(0.0, inFullAtMs - inContentStartMs);
 
     // ---- beat matched mix, when both tracks have a steady, compatible beat ----
+    // ---- where do the vocals end / start? ----
+    var outVocalEndMs = tail.lastVocalEndMs();
+    if (outVocalEndMs != null && (outVocalEndMs > outContentEndMs - 300 || outVocalEndMs < tail.startMs + 3000)) {
+      outVocalEndMs = null; // sung until the very end, or unusable
+    }
+    final inVocalStartMs = head.firstVocalStartMs(fromMs: inContentStartMs + 800);
+
     final beatmatch = _tryBeatmatch(
       tail: tail,
       head: head,
       outContentEndMs: outContentEndMs,
       outFadeStartMs: outFadeStartMs,
       inContentStartMs: inContentStartMs,
+      outVocalEndMs: outVocalEndMs,
+      inVocalStartMs: inVocalStartMs,
     );
     if (beatmatch != null) return beatmatch;
+
+    // ---- vocal handover without beat matching: next vocals start right after the last ones ----
+    if (outVocalEndMs != null && inVocalStartMs != null) {
+      final inStart = max(max(0.0, inContentStartMs - 50), inVocalStartMs - 8000);
+      final pre = inVocalStartMs - inStart;
+      final mixStart = outVocalEndMs + 150 - pre;
+      final outEnd = min(outContentEndMs, outVocalEndMs + 2500);
+      if (mixStart >= tail.startMs && outEnd - mixStart >= 2000) {
+        final length = outEnd - mixStart;
+        return AutoMixPlan(
+          mode: AutoMixMode.blend,
+          outMixStartMs: mixStart,
+          outEndMs: outEnd,
+          inStartMs: inStart,
+          incomingRate: 1,
+          vocalAligned: true,
+          bassSwapFraction: null,
+          inFadeFraction: (pre / length * 0.8).clamp(0.1, 0.9).toDouble(),
+          outFadeStartFraction: ((outVocalEndMs - 600 - mixStart) / length).clamp(0.0, 0.9).toDouble(),
+          outBeatPeriodMs: null,
+          inBeatPeriodMs: null,
+          description: "voix → voix ${(length / 1000).toStringAsFixed(1)}s",
+        );
+      }
+    }
 
     // ---- blend: the outgoing track fades out, or the incoming one has a soft intro ----
     if (outFadeLengthMs >= 2500) {
@@ -121,30 +158,74 @@ class AutoMixPlanner {
     required double outContentEndMs,
     required double outFadeStartMs,
     required double inContentStartMs,
+    double? outVocalEndMs,
+    double? inVocalStartMs,
   }) {
     if (!tail.hasTempo || !head.hasTempo) return null;
     if (tail.confidence < minBeatConfidence || head.confidence < minBeatConfidence) return null;
 
     // incoming tempo, allowing half/double time (e.g. 87 BPM rap vs 174 BPM)
     var inBpm = head.bpm;
-    var inBeatMultiplier = 1.0; // incoming beats per outgoing beat
+    var inBeatMultiplier = 1.0;
     for (final m in [0.5, 2.0]) {
       if ((head.bpm * m / tail.bpm - 1).abs() < (inBpm / tail.bpm - 1).abs()) {
         inBpm = head.bpm * m;
         inBeatMultiplier = m;
       }
     }
-    final rate = tail.bpm / inBpm;
+    // incoming track time per outgoing track time when beats are locked
+    final ratio = tail.bpm / inBpm;
     final maxChange = allowTempoChange ? maxRateChange : 0.008;
-    if ((rate - 1).abs() > maxChange) return null;
+    if ((ratio - 1).abs() > maxChange) return null;
+    // small differences: only the incoming track moves; bigger ones: both meet halfway (tempo ramp)
+    final outRate = (ratio - 1).abs() <= smallRateChange ? 1.0 : 1 / sqrt(ratio);
+    final inRate = ratio * outRate;
 
     final outBeat = tail.beatPeriodMs;
-    final steady = tail.confidence >= 0.6 && head.confidence >= 0.6;
-    // house & co: long 16 beat blends; everything else 8 beats
-    var beats = steady && tail.bpm >= 112 ? 16 : 8;
+    final inBeat = head.beatPeriodMs;
+    final inMult = inBeatMultiplier == 1 ? "" : " (×$inBeatMultiplier)";
+    final tempo = "${tail.bpm.toStringAsFixed(0)}→${head.bpm.toStringAsFixed(0)} BPM$inMult";
 
-    // the blend should be finished when the outgoing track stops "playing"
-    // (or, failing that, when it actually ends)
+    // ---- vocal handover on the beat ----
+    if (outVocalEndMs != null && inVocalStartMs != null) {
+      // bar of the outgoing track where the incoming vocals should come in
+      var landing = tail.downbeatAtOrAfter(outVocalEndMs + 0.25 * outBeat);
+      if (landing > outContentEndMs - outBeat) landing = tail.downbeatAtOrBefore(outContentEndMs - outBeat);
+      // bar of the incoming track where its vocals start (a short pickup before it is fine)
+      final inVocalBar = head.downbeatAtOrBefore(inVocalStartMs + 0.5 * inBeat);
+      final preferredBars = tail.bpm >= 112 ? 4 : 2;
+      for (var bars = preferredBars; bars >= 1; bars--) {
+        final inStart = inVocalBar - bars * 4 * inBeat;
+        // the beats lock incoming time to outgoing time through the ratio
+        final mixStart = landing - bars * 4 * inBeat / ratio;
+        if (inStart < max(0.0, inContentStartMs - 0.3 * inBeat)) continue;
+        if (mixStart < tail.startMs + outBeat) continue;
+        final outEnd = min(outContentEndMs, landing + 4 * outBeat);
+        final length = outEnd - mixStart;
+        if (length < 4 * outBeat) continue;
+        final landingFraction = (landing - mixStart) / length;
+        return AutoMixPlan(
+          mode: AutoMixMode.beatmatch,
+          outMixStartMs: mixStart,
+          outEndMs: outEnd,
+          inStartMs: inStart,
+          incomingRate: inRate,
+          outgoingRate: outRate,
+          beatRatio: ratio,
+          vocalAligned: true,
+          bassSwapFraction: null,
+          inFadeFraction: landingFraction * 0.75,
+          outFadeStartFraction: max(0.0, (landing - 2 * outBeat - mixStart) / length),
+          outBeatPeriodMs: outBeat,
+          inBeatPeriodMs: inBeat,
+          description: "beatmatch voix → voix, $bars mesure${bars > 1 ? "s" : ""} d'intro, $tempo",
+        );
+      }
+    }
+
+    // ---- classic DJ blend at the end of the outgoing track ----
+    final steady = tail.confidence >= 0.6 && head.confidence >= 0.6;
+    var beats = steady && tail.bpm >= 112 ? 16 : 8;
     double? mixStart;
     for (final targetEnd in [min(outContentEndMs, outFadeStartMs + 4 * outBeat), outContentEndMs]) {
       var b = beats;
@@ -163,24 +244,24 @@ class AutoMixPlanner {
     final mixEnd = min(mixStart + beats * outBeat, outContentEndMs);
 
     // the incoming track must have sound right from its first bar
-    var inStart = head.downbeatAtOrAfter(inContentStartMs - head.beatPeriodMs * 0.25);
-    if (inStart < 0) inStart += head.beatPeriodMs * 4;
+    var inStart = head.downbeatAtOrAfter(inContentStartMs - inBeat * 0.25);
+    if (inStart < 0) inStart += inBeat * 4;
     if (inStart > head.endMs - 4000) return null;
 
-    final inMult = inBeatMultiplier == 1 ? "" : " (×$inBeatMultiplier)";
     return AutoMixPlan(
       mode: AutoMixMode.beatmatch,
       outMixStartMs: mixStart,
       outEndMs: mixEnd,
       inStartMs: inStart,
-      incomingRate: rate,
-      bassSwapFraction: 0.5,
+      incomingRate: inRate,
+      outgoingRate: outRate,
+      beatRatio: ratio,
+      bassSwapFraction: null,
       inFadeFraction: 0.45,
       outFadeStartFraction: 0.5,
       outBeatPeriodMs: outBeat,
-      inBeatPeriodMs: head.beatPeriodMs,
-      description:
-          "beatmatch $beats beats, ${tail.bpm.toStringAsFixed(1)}→${head.bpm.toStringAsFixed(1)} BPM$inMult",
+      inBeatPeriodMs: inBeat,
+      description: "beatmatch $beats temps, $tempo",
     );
   }
 }

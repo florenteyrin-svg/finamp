@@ -3854,7 +3854,7 @@
         "description": "AutoMix setting subtitle"
     },
     "autoMixAllowTempoChangeTitle": "Match tempo",
-    "autoMixAllowTempoChangeSubtitle": "Slightly speed up or slow down the incoming track (up to 6%) so beats line up. The pitch is preserved.",
+    "autoMixAllowTempoChangeSubtitle": "Gradual tempo ramp (up to 16% apart, each track moves half way) so beats line up. The pitch is preserved.",
     "@autoMixAllowTempoChangeTitle": {
         "description": "AutoMix setting title"
     },
