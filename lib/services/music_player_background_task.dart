@@ -26,6 +26,7 @@ import 'package:logging/logging.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'android_auto_helper.dart';
+import 'automix/automix_engine.dart';
 import 'finamp_settings_helper.dart';
 import 'metadata_provider.dart';
 
@@ -77,7 +78,22 @@ class PlayerVolumeController {
   double _internalVolume = FinampSettingsHelper.finampSettings.currentVolume;
   double _replayGainVolume = 1.0;
   double _fadeVolume = 1.0;
+  double _mixVolume = 1.0;
   bool isDucked = false;
+
+  /// Effective volume without the AutoMix factor (used for the AutoMix overlay player).
+  double get baseVolume =>
+      _internalVolume.clamp(0.0, 1.0) *
+      _replayGainVolume.clamp(0.0, 1.0) *
+      _fadeVolume.clamp(0.0, 1.0) *
+      (isDucked ? 0.3 : 1.0);
+
+  /// Extra factor used by AutoMix while blending two tracks.
+  Future<void> setMixVolume(double volume) {
+    if (volume == _mixVolume) return Future.value();
+    _mixVolume = volume;
+    return _updateVolume();
+  }
 
   Future<void> setInternalVolume(double volume) {
     if (volume == _internalVolume) return Future.value();
@@ -115,7 +131,8 @@ class PlayerVolumeController {
     var vol2 = _replayGainVolume.clamp(0.0, 1.0);
     var vol3 = _fadeVolume.clamp(0.0, 1.0);
     var duckingFactor = isDucked ? 0.3 : 1.0;
-    var totalVol = vol1 * vol2 * vol3 * duckingFactor;
+    var vol4 = _mixVolume.clamp(0.0, 1.0);
+    var totalVol = vol1 * vol2 * vol3 * vol4 * duckingFactor;
     _volumeLogger.info(
       "Setting volume to $totalVol - user: $_internalVolume gain: $_replayGainVolume fade: $_fadeVolume, ducking: $isDucked",
     );
@@ -135,6 +152,11 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   late final List<AndroidAudioEffect> _androidAudioEffects;
   late final List<DarwinAudioEffect> _iosAudioEffects;
   late final AndroidLoudnessEnhancer? _loudnessEnhancerEffect;
+
+  /// Equalizer used by AutoMix for the bass swap (only present when AutoMix was enabled at startup).
+  AndroidEqualizer? _autoMixEqualizer;
+  AutoMixEngine? _autoMix;
+  bool get _autoMixHolds => _autoMix?.holdsPlayback ?? false;
 
   final _audioServiceBackgroundTaskLogger = Logger("MusicPlayerBackgroundTask");
   final _volumeNormalizationLogger = Logger("VolumeNormalization");
@@ -316,6 +338,13 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       _androidAudioEffects.add(_loudnessEnhancerEffect!);
     } else {
       _loudnessEnhancerEffect = null;
+    }
+
+    if (Platform.isAndroid &&
+        FinampSettingsHelper.finampSettings.autoMixEnabled &&
+        !FinampSettingsHelper.finampSettings.forceAudioOffloadingOnAndroid) {
+      _autoMixEqualizer = AndroidEqualizer();
+      _androidAudioEffects.add(_autoMixEqualizer!);
     }
 
     _audioPipeline = AudioPipeline(androidAudioEffects: _androidAudioEffects, darwinAudioEffects: _iosAudioEffects);
@@ -533,6 +562,30 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     });
 
     fadeState = BehaviorSubject.seeded(FadeState(fadeVolume: 1.0));
+
+    if (Platform.isAndroid) {
+      _autoMix = AutoMixEngine(
+        AutoMixHost(
+          player: _player,
+          mainEqualizer: _autoMixEqualizer,
+          baseVolume: () => _volume.baseVolume,
+          setMixVolume: _volume.setMixVolume,
+          isAllowed: () =>
+              FinampSettingsHelper.finampSettings.autoMixEnabled &&
+              !FinampSettingsHelper.finampSettings.forceAudioOffloadingOnAndroid &&
+              sleepTimer?.remainingTracks != 1 &&
+              fadeState.value.fadeDirection == FadeDirection.none,
+          keepAlbumsGapless: () => FinampSettingsHelper.finampSettings.autoMixKeepAlbumsGapless,
+          allowTempoChange: () => FinampSettingsHelper.finampSettings.autoMixAllowTempoChange,
+          onHoldChanged: () => playbackState.add(_transformEvent(_player.playbackEvent)),
+        ),
+      );
+    }
+  }
+
+  /// Stops a running AutoMix transition before a user action takes over.
+  Future<void> _abortAutoMix(String reason, {bool resumeMain = true}) async {
+    await _autoMix?.abort(resumeMain: resumeMain, reason: reason);
   }
 
   SleepTimer? get sleepTimer => _timer.value;
@@ -549,6 +602,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     Duration? initialPosition,
     ShuffleOrder? shuffleOrder,
   }) async {
+    await _abortAutoMix("new queue", resumeMain: false);
     try {
       List<AudioSource> audioSources = [];
 
@@ -603,12 +657,16 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     return _player.removeAudioSourceRange(start, end);
   }
 
-  Future<void> clearFinampQueueItems() {
+  Future<void> clearFinampQueueItems() async {
+    await _abortAutoMix("queue cleared", resumeMain: false);
     return _player.clearAudioSources();
   }
 
   /// Fully dispose the player instance.  Should only be called during app shutdown.
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    _autoMix?.dispose();
+    await _player.dispose();
+  }
 
   @override
   Future<void> play({bool disableFade = false}) async {
@@ -636,6 +694,10 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     if (_shouldIgnorePlayPauseAfterRecentSkip) {
       return;
     }
+    if (_autoMixHolds) {
+      // AutoMix is about to start the next track on the beat, it is already "playing"
+      return;
+    }
     if (!disableFade && FinampSettingsHelper.finampSettings.audioFadeInDuration > Duration.zero) {
       return fadeInAndPlay();
     } else {
@@ -648,6 +710,8 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
 
   @override
   Future<void> setSpeed(final double speed) async {
+    await _abortAutoMix("speed changed");
+    _autoMix?.forgetSpeed();
     return _player.setSpeed(speed);
   }
 
@@ -666,6 +730,15 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     );
     if (_shouldIgnorePlayPauseAfterRecentSkip) {
       return;
+    }
+    if (_autoMix?.isTransitioning ?? false) {
+      final wasHolding = _autoMixHolds;
+      await _abortAutoMix("paused", resumeMain: false);
+      if (wasHolding) {
+        // the main player is already paused, waiting for the incoming track's cue
+        playbackState.add(_transformEvent(_player.playbackEvent));
+        return;
+      }
     }
     if (!disableFade && FinampSettingsHelper.finampSettings.audioFadeOutDuration > Duration.zero) {
       return fadeOutAndPause();
@@ -766,7 +839,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   }
 
   Future<void> togglePlayback() {
-    if (_player.playing && fadeState.value.fadeDirection != FadeDirection.fadeOut) {
+    if ((_player.playing || _autoMixHolds) && fadeState.value.fadeDirection != FadeDirection.fadeOut) {
       return pause();
     } else {
       return play();
@@ -791,6 +864,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   }
 
   Future<void> stopPlayback() async {
+    await _abortAutoMix("stopped", resumeMain: false);
     try {
       if (sleepTimer != null) {
         _audioServiceBackgroundTaskLogger.info("Stopping playback with active sleep timer");
@@ -837,6 +911,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       "skipToPrevious() start: forceSkip=$forceSkip, playing=${_player.playing}, fadeDirection=${fadeState.value.fadeDirection}, hasPrevious=${_player.hasPrevious}, loopMode=${_player.loopMode}, currentIndex=${_player.currentIndex}, position=${_player.position}",
     );
     _lastSkipCommandAt = DateTime.now();
+    await _abortAutoMix("skip to previous");
     bool doSkip = true;
 
     try {
@@ -873,6 +948,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       "skipToNext() start: playing=${_player.playing}, fadeDirection=${fadeState.value.fadeDirection}, hasNext=${_player.hasNext}, loopMode=${_player.loopMode}, currentIndex=${_player.currentIndex}, position=${_player.position}",
     );
     _lastSkipCommandAt = DateTime.now();
+    await _abortAutoMix("skip to next");
     try {
       if (_player.loopMode == LoopMode.one || !_player.hasNext) {
         // if the user manually skips to the next track, they probably want to actually skip to the next track
@@ -889,6 +965,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
 
   Future<void> skipByOffset(int offset) async {
     _audioServiceBackgroundTaskLogger.fine("skipping by offset: $offset");
+    await _abortAutoMix("skip by offset");
 
     try {
       int queueIndex = _player.shuffleModeEnabled
@@ -919,6 +996,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
 
   Future<void> skipToIndex(int index) async {
     _audioServiceBackgroundTaskLogger.fine("skipping to index: $index");
+    await _abortAutoMix("skip to index");
 
     try {
       await _player.seek(Duration.zero, index: _player.shuffleModeEnabled ? shuffleIndices[index] : index);
@@ -930,6 +1008,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
 
   @override
   Future<void> seek(Duration position) async {
+    await _abortAutoMix("seek");
     try {
       await _player.seek(position);
     } catch (e) {
@@ -1278,7 +1357,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     return PlaybackState(
       controls: [
         MediaControl.skipToPrevious,
-        if (_player.playing) MediaControl.pause else MediaControl.play,
+        if (_player.playing || _autoMixHolds) MediaControl.pause else MediaControl.play,
         MediaControl.skipToNext,
         if (FinampSettingsHelper.finampSettings.showFavoriteButtonOnMediaNotification &&
             !FinampSettingsHelper.finampSettings.isOffline)
@@ -1320,7 +1399,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
         ProcessingState.ready: AudioProcessingState.ready,
         ProcessingState.completed: AudioProcessingState.completed,
       }[_player.processingState]!,
-      playing: _player.playing,
+      playing: _player.playing || _autoMixHolds,
       //!!! use the current player position, since there might be a delay before this event is processed.
       // Do **not** use [event.updatePosition] or [event.bufferedPosition], since that could lead to a discontinuity in the playback position (resetting to 0) and cause incorrect history entries
       updatePosition: _player.position,
@@ -1339,7 +1418,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       : _player.currentIndex;
   SequenceState get sequenceState => _player.sequenceState;
   double get volume => (_volume._internalVolume * 100).roundToDouble() / 100;
-  bool get paused => !_player.playing;
+  bool get paused => !_player.playing && !_autoMixHolds;
   Duration get playbackPosition => _player.position;
 
   void onQueueServiceAvailable() {

@@ -466,6 +466,13 @@ class FinampSettingsAdapter extends TypeAdapter<FinampSettings> {
         closeToTray: fields[161] == null ? false : fields[161] as bool,
         minimizeToTray: fields[162] == null ? false : fields[162] as bool,
         startMinimizedToTray: fields[163] == null ? false : fields[163] as bool,
+        autoMixEnabled: fields[164] == null ? true : fields[164] as bool,
+        autoMixKeepAlbumsGapless: fields[165] == null
+            ? true
+            : fields[165] as bool,
+        autoMixAllowTempoChange: fields[166] == null
+            ? true
+            : fields[166] as bool,
       )
       ..sortBy = fields[7] as SortBy?
       ..sortOrder = fields[8] as SortOrder?
@@ -489,7 +496,7 @@ class FinampSettingsAdapter extends TypeAdapter<FinampSettings> {
   @override
   void write(BinaryWriter writer, FinampSettings obj) {
     writer
-      ..writeByte(152)
+      ..writeByte(155)
       ..writeByte(0)
       ..write(obj.isOffline)
       ..writeByte(1)
@@ -793,7 +800,13 @@ class FinampSettingsAdapter extends TypeAdapter<FinampSettings> {
       ..writeByte(162)
       ..write(obj.minimizeToTray)
       ..writeByte(163)
-      ..write(obj.startMinimizedToTray);
+      ..write(obj.startMinimizedToTray)
+      ..writeByte(164)
+      ..write(obj.autoMixEnabled)
+      ..writeByte(165)
+      ..write(obj.autoMixKeepAlbumsGapless)
+      ..writeByte(166)
+      ..write(obj.autoMixAllowTempoChange);
   }
 
   @override

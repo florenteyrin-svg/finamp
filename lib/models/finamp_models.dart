@@ -321,6 +321,9 @@ class DefaultSettings {
   static const closeToTray = false;
   static const minimizeToTray = false;
   static const startMinimizedToTray = false;
+  static const autoMixEnabled = true;
+  static const autoMixKeepAlbumsGapless = true;
+  static const autoMixAllowTempoChange = true;
 }
 
 @HiveType(typeId: 28)
@@ -472,6 +475,9 @@ class FinampSettings {
     this.closeToTray = DefaultSettings.closeToTray,
     this.minimizeToTray = DefaultSettings.minimizeToTray,
     this.startMinimizedToTray = DefaultSettings.startMinimizedToTray,
+    this.autoMixEnabled = DefaultSettings.autoMixEnabled,
+    this.autoMixKeepAlbumsGapless = DefaultSettings.autoMixKeepAlbumsGapless,
+    this.autoMixAllowTempoChange = DefaultSettings.autoMixAllowTempoChange,
   });
 
   @HiveField(0, defaultValue: DefaultSettings.isOffline)
@@ -987,6 +993,18 @@ class FinampSettings {
   /// Desktop only: start with the window hidden in the system tray.
   @HiveField(163, defaultValue: DefaultSettings.startMinimizedToTray)
   bool startMinimizedToTray;
+
+  /// Android only: DJ style transitions between tracks (AutoMix).
+  @HiveField(164, defaultValue: DefaultSettings.autoMixEnabled)
+  bool autoMixEnabled;
+
+  /// AutoMix: keep gapless playback when the next track continues the same album.
+  @HiveField(165, defaultValue: DefaultSettings.autoMixKeepAlbumsGapless)
+  bool autoMixKeepAlbumsGapless;
+
+  /// AutoMix: allow slight tempo changes of the incoming track to match beats.
+  @HiveField(166, defaultValue: DefaultSettings.autoMixAllowTempoChange)
+  bool autoMixAllowTempoChange;
 
   static Future<FinampSettings> create() async {
     final downloadLocation = await DownloadLocation.create(

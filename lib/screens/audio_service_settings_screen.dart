@@ -39,6 +39,9 @@ class _AudioServiceSettingsScreenState extends State<AudioServiceSettingsScreen>
           if (Platform.isAndroid) const StopForegroundSelector(),
           if (Platform.isAndroid) const EnableDuckingOnInterruptionsToggle(),
           if (Platform.isAndroid) const ForceAudioOffloadingOnAndroidToggle(),
+          if (Platform.isAndroid) const AutoMixToggle(),
+          if (Platform.isAndroid) const AutoMixKeepAlbumsGaplessToggle(),
+          if (Platform.isAndroid) const AutoMixAllowTempoChangeToggle(),
           const TrackShuffleItemCountEditor(),
           const AudioFadeInDurationListTile(),
           const AudioFadeOutDurationListTile(),
@@ -276,6 +279,48 @@ class ForceAudioOffloadingOnAndroidToggle extends ConsumerWidget {
       onChanged: (newValue) async {
         FinampSetters.setForceAudioOffloadingOnAndroid(newValue);
       },
+    );
+  }
+}
+
+class AutoMixToggle extends ConsumerWidget {
+  const AutoMixToggle({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SwitchListTile.adaptive(
+      title: Text(AppLocalizations.of(context)!.autoMixEnabledTitle),
+      subtitle: Text(AppLocalizations.of(context)!.autoMixEnabledSubtitle),
+      value: ref.watch(finampSettingsProvider.autoMixEnabled),
+      onChanged: FinampSetters.setAutoMixEnabled,
+    );
+  }
+}
+
+class AutoMixKeepAlbumsGaplessToggle extends ConsumerWidget {
+  const AutoMixKeepAlbumsGaplessToggle({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SwitchListTile.adaptive(
+      title: Text(AppLocalizations.of(context)!.autoMixKeepAlbumsGaplessTitle),
+      subtitle: Text(AppLocalizations.of(context)!.autoMixKeepAlbumsGaplessSubtitle),
+      value: ref.watch(finampSettingsProvider.autoMixKeepAlbumsGapless),
+      onChanged: ref.watch(finampSettingsProvider.autoMixEnabled) ? FinampSetters.setAutoMixKeepAlbumsGapless : null,
+    );
+  }
+}
+
+class AutoMixAllowTempoChangeToggle extends ConsumerWidget {
+  const AutoMixAllowTempoChangeToggle({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SwitchListTile.adaptive(
+      title: Text(AppLocalizations.of(context)!.autoMixAllowTempoChangeTitle),
+      subtitle: Text(AppLocalizations.of(context)!.autoMixAllowTempoChangeSubtitle),
+      value: ref.watch(finampSettingsProvider.autoMixAllowTempoChange),
+      onChanged: ref.watch(finampSettingsProvider.autoMixEnabled) ? FinampSetters.setAutoMixAllowTempoChange : null,
     );
   }
 }

@@ -3836,5 +3836,29 @@
         "example": "Rick Astley - Never Gonna Give You Up"
       }
     }
-  }
+  },
+    "autoMixEnabledTitle": "AutoMix",
+    "autoMixEnabledSubtitle": "Blend tracks into each other like a DJ: beat matched mixes when tempos are compatible, smooth blends otherwise. Takes effect for the bass swap after restarting the app.",
+    "@autoMixEnabledTitle": {
+        "description": "AutoMix setting title"
+    },
+    "@autoMixEnabledSubtitle": {
+        "description": "AutoMix setting subtitle"
+    },
+    "autoMixKeepAlbumsGaplessTitle": "Keep albums gapless",
+    "autoMixKeepAlbumsGaplessSubtitle": "Don't mix when the next track continues the same album (live albums, DJ mixes, concept albums).",
+    "@autoMixKeepAlbumsGaplessTitle": {
+        "description": "AutoMix setting title"
+    },
+    "@autoMixKeepAlbumsGaplessSubtitle": {
+        "description": "AutoMix setting subtitle"
+    },
+    "autoMixAllowTempoChangeTitle": "Match tempo",
+    "autoMixAllowTempoChangeSubtitle": "Slightly speed up or slow down the incoming track (up to 6%) so beats line up. The pitch is preserved.",
+    "@autoMixAllowTempoChangeTitle": {
+        "description": "AutoMix setting title"
+    },
+    "@autoMixAllowTempoChangeSubtitle": {
+        "description": "AutoMix setting subtitle"
+    }
 }

@@ -61,7 +61,16 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            resValue "string", "app_name", "Finamp"
+            if (System.getenv('FINAMP_AUTOMIX_BUILD') == 'true') {
+                if (keystoreProperties['storeFile'] == null) {
+                    signingConfig signingConfigs.debug
+                }
+                // AutoMix fork: installs next to the official Finamp app
+                applicationIdSuffix '.automix'
+                resValue "string", "app_name", "Finamp AutoMix"
+            } else {
+                resValue "string", "app_name", "Finamp"
+            }
             // shrinkResources false
             // minifyEnabled false
         }

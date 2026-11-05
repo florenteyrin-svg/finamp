@@ -3703,5 +3703,11 @@
     "@releaseDateFormatNumerical": {
         "description": "Date format option for the release date of an album, showing the date in a short numerical format. Changes based on locale such as DD/MM/YYYY for en_gb and MM/DD/YYYY for en_us."
     },
-    "loginFlowLocalNetworkServersNoResults": "Aucun serveur détecté - vous devrez peut-être entrer l'adresse du serveur manuellement."
+    "loginFlowLocalNetworkServersNoResults": "Aucun serveur détecté - vous devrez peut-être entrer l'adresse du serveur manuellement.",
+    "autoMixEnabledTitle": "AutoMix",
+    "autoMixEnabledSubtitle": "Enchaîne les morceaux comme un DJ : mix calé sur le beat quand les tempos sont compatibles, fondu intelligent sinon. Le passage des basses s'active après redémarrage de l'app.",
+    "autoMixKeepAlbumsGaplessTitle": "Albums sans mix",
+    "autoMixKeepAlbumsGaplessSubtitle": "Ne pas mixer quand le morceau suivant est la suite du même album (live, mixtapes, albums concept).",
+    "autoMixAllowTempoChangeTitle": "Caler le tempo",
+    "autoMixAllowTempoChangeSubtitle": "Accélère ou ralentit légèrement le morceau suivant (6 % max) pour caler les beats. La tonalité ne change pas."
 }

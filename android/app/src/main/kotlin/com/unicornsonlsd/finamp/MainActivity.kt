@@ -18,7 +18,12 @@ import androidx.mediarouter.media.MediaRouter
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.unicornsonlsd.finamp.automix.AutoMixAnalyzer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
@@ -42,6 +47,12 @@ class MainActivity : AudioServiceActivity() {
 
         private const val SET_NATIVE_THEME_CHANNEL = "com.unicornsonlsd.finamp/set_native_theme"
         private const val SET_NATIVE_THEME_CHANNEL_LOG_TAG = "setNativeThemeChannel"
+
+        private const val AUTOMIX_CHANNEL = "com.unicornsonlsd.finamp/automix_analyzer"
+
+        // Not tied to the activity lifecycle: analysis must keep running while the app plays in background.
+        private val automixScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        private val automixLimiter = Semaphore(1)
     }
 
     private lateinit var mediaRouter: MediaRouter
@@ -186,6 +197,35 @@ class MainActivity : AudioServiceActivity() {
                     Log.e(SET_NATIVE_THEME_CHANNEL_LOG_TAG, "Method not found: '${call.method}'")
                     result.notImplemented()
                 }
+            }
+        }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            AUTOMIX_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "analyze" -> {
+                    val uri = call.argument<String>("uri")
+                    val headMs = (call.argument<Number>("headMs") ?: 30000).toLong()
+                    val tailMs = (call.argument<Number>("tailMs") ?: 45000).toLong()
+                    if (uri == null) {
+                        result.error("INVALID_ARGUMENT", "uri is required", null)
+                    } else {
+                        automixScope.launch {
+                            val analysis = try {
+                                automixLimiter.withPermit { AutoMixAnalyzer.analyze(uri, headMs, tailMs) }
+                            } catch (e: Throwable) {
+                                Log.w("AutoMixAnalyzer", "analysis failed: ${e.message}")
+                                null
+                            }
+                            withContext(Dispatchers.Main) {
+                                if (analysis != null) result.success(analysis)
+                                else result.error("ANALYSIS_FAILED", "analysis failed", null)
+                            }
+                        }
+                    }
+                }
+                else -> result.notImplemented()
             }
         }
         MethodChannel(

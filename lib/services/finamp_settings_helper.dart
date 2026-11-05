@@ -197,6 +197,9 @@ class FinampSettingsHelper {
     FinampSetters.setAutoplayRestoredQueue(DefaultSettings.autoplayRestoredQueue);
     FinampSetters.setDuckOnAudioInterruption(DefaultSettings.duckOnAudioInterruption);
     FinampSetters.setForceAudioOffloadingOnAndroid(DefaultSettings.forceAudioOffloadingOnAndroid);
+    FinampSetters.setAutoMixEnabled(DefaultSettings.autoMixEnabled);
+    FinampSetters.setAutoMixKeepAlbumsGapless(DefaultSettings.autoMixKeepAlbumsGapless);
+    FinampSetters.setAutoMixAllowTempoChange(DefaultSettings.autoMixAllowTempoChange);
   }
 
   static void resetPlaybackReportingSettings() {

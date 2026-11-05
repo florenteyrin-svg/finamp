@@ -1,0 +1,84 @@
+name: AutoMix APK
+
+# Builds an installable Android APK of this fork ("Finamp AutoMix", installs next to the
+# official Finamp) and publishes it as a GitHub release, so it can be downloaded from a phone.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - redesign
+      - 'automix**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: automix-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build AutoMix APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/share/swift /usr/local/.ghcup /usr/local/julia* /usr/local/share/powershell
+          df -h
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Gradle cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      # The APK is signed with the runner's Android debug key. It is kept in this repository's private
+      # Actions cache, so new builds install as updates over older ones (as long as the cache lives).
+      - name: Signing key cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.android/debug.keystore
+          key: automix-debug-keystore-v1
+
+      - run: flutter pub get
+
+      - name: Build APK
+        env:
+          FINAMP_AUTOMIX_BUILD: 'true'
+        run: |
+          flutter build apk --release --no-pub --split-per-abi --build-number=${{ github.run_number }}
+          mkdir -p out
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk out/finamp-automix.apk
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: finamp-automix-apk
+          path: out/finamp-automix.apk
+          compression-level: 0
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: automix-${{ github.run_number }}
+          name: Finamp AutoMix (build ${{ github.run_number }})
+          body: |
+            Download **finamp-automix.apk** below on your Android phone and open it to install.
+            Built from ${{ github.sha }}.
+          files: out/finamp-automix.apk
+          make_latest: true
