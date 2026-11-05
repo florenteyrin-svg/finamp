@@ -86,7 +86,7 @@ class AutoMixAnalysisService {
         "headMs": 30000,
         "tailMs": 45000,
         "durationMs": durationMs?.round() ?? -1,
-      }).timeout(const Duration(seconds: 90));
+      }).timeout(const Duration(seconds: 100));
       if (result == null) return null;
       final analysis = AutoMixAnalysis.fromMap(result);
       _logger.info(
@@ -106,7 +106,7 @@ class AutoMixAnalysisService {
       lastError = e is PlatformException
           ? (e.message ?? e.code)
           : e is TimeoutException
-          ? "délai dépassé (90 s)"
+          ? "délai dépassé (100 s)"
           : e.toString();
       _failed[itemId] = DateTime.now();
       return null;

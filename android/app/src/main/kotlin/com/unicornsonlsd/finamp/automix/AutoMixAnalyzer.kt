@@ -60,91 +60,158 @@ object AutoMixAnalyzer {
         return total
     }
 
-    /**
-     * Downloads only the start and the end of [url] (HTTP range requests) into a file of the full size,
-     * so the platform extractor can decode both regions. Falls back to a full download when the server
-     * doesn't support ranges or the file is small.
-     */
-    private fun download(url: String, target: File, durationMs: Long, headMs: Long, tailMs: Long) {
+    /** Downloads the whole body of [url] into [target]. */
+    private fun downloadFull(url: String, target: File) {
         RandomAccessFile(target, "rw").use { file ->
-            if (durationMs <= 0) {
-                val conn = open(url, null)
-                try {
-                    if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
-                    copyTo(conn, file, 0, "téléchargement complet", MAX_DOWNLOAD_BYTES)
-                } finally { conn.disconnect() }
-                return
-            }
-            // first request: tells us the size, and gets the start of the file
-            val probe = open(url, "bytes=0-1")
-            val total: Long
+            val conn = open(url, null)
             try {
-                val code = probe.responseCode
-                if (code == 200) {
-                    // no range support: take the whole body
-                    copyTo(probe, file, 0, "téléchargement complet", MAX_DOWNLOAD_BYTES)
-                    return
-                }
-                if (code != 206) throw IOException("HTTP $code")
-                val cr = probe.getHeaderField("Content-Range") ?: throw IOException("no Content-Range")
-                total = cr.substringAfter('/').trim().toLong()
-            } finally { probe.disconnect() }
+                if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
+                copyTo(conn, file, 0, "téléchargement complet", MAX_DOWNLOAD_BYTES)
+            } finally { conn.disconnect() }
+        }
+    }
 
-            val bytesPerMs = total.toDouble() / durationMs
-            val margin = 768L * 1024
-            val headBytes = ((headMs + 5000) * bytesPerMs).toLong() + margin
-            val tailBytes = ((tailMs + 10000) * bytesPerMs).toLong() + margin
-            file.setLength(total)
-            if (headBytes + tailBytes >= total) {
-                val conn = open(url, null)
-                try { copyTo(conn, file, 0, "téléchargement complet", MAX_DOWNLOAD_BYTES) } finally { conn.disconnect() }
-                return
-            }
+    /**
+     * Downloads only the start and the end of [url] (HTTP range requests) and writes them one after
+     * the other into [target]. Returns false (and downloads nothing) when this isn't possible or
+     * useful: no range support, small file, or an MP4 container (whose index would point to the
+     * wrong bytes).
+     */
+    private fun downloadHeadAndTail(url: String, target: File, durationMs: Long, headMs: Long, tailMs: Long): Boolean {
+        val probe = open(url, "bytes=0-15")
+        val total: Long
+        try {
+            if (probe.responseCode != 206) return false
+            val cr = probe.getHeaderField("Content-Range") ?: return false
+            total = cr.substringAfter('/').trim().toLongOrNull() ?: return false
+            val start = probe.inputStream.use { it.readBytes() }
+            if (start.size >= 8 && String(start, 4, 4, Charsets.US_ASCII) == "ftyp") return false
+        } finally { probe.disconnect() }
+
+        val bytesPerMs = total.toDouble() / durationMs
+        val margin = 768L * 1024
+        val headBytes = ((headMs + 5000) * bytesPerMs).toLong() + margin
+        val tailBytes = ((tailMs + 5000) * bytesPerMs).toLong() + 64 * 1024
+        if (headBytes + tailBytes >= total * 0.8) return false
+
+        RandomAccessFile(target, "rw").use { file ->
             val c1 = open(url, "bytes=0-${headBytes - 1}")
             try {
                 if (c1.responseCode != 206) throw IOException("HTTP ${c1.responseCode}")
                 copyTo(c1, file, 0, "téléchargement du début", headBytes + 1)
             } finally { c1.disconnect() }
-            val tailStart = total - tailBytes
-            val c2 = open(url, "bytes=$tailStart-")
+            val c2 = open(url, "bytes=${total - tailBytes}-")
             try {
                 if (c2.responseCode != 206) throw IOException("HTTP ${c2.responseCode}")
-                copyTo(c2, file, tailStart, "téléchargement de la fin", tailBytes + 1)
+                copyTo(c2, file, file.length(), "téléchargement de la fin", tailBytes + 1)
             } finally { c2.disconnect() }
         }
+        return true
     }
 
     fun analyze(uri: String, headMs: Long, tailMs: Long, cacheDir: File, durationMs: Long = -1): Map<String, Any?> {
-        return try {
-            analyzeInternal(uri, headMs, tailMs, cacheDir, durationMs, partial = true)
-        } catch (e: Exception) {
-            if (!(uri.startsWith("http://") || uri.startsWith("https://")) || durationMs <= 0) throw e
-            Log.w(TAG, "partial analysis failed (${e.message}), retrying with the full file")
-            progress = "nouvel essai avec le fichier complet (${e.message})"
-            analyzeInternal(uri, headMs, tailMs, cacheDir, -1, partial = false)
+        val isRemote = uri.startsWith("http://") || uri.startsWith("https://")
+        try {
+            if (!isRemote) return analyzeFile(uri.removePrefix("file://"), headMs, tailMs, durationMs)
+            val tmp = File.createTempFile("automix", ".audio", cacheDir)
+            try {
+                if (durationMs > 0) {
+                    progress = "connexion au serveur"
+                    val partial = try {
+                        downloadHeadAndTail(uri, tmp, durationMs, headMs, tailMs)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "partial download failed: ${e.message}")
+                        false
+                    }
+                    if (partial) {
+                        try {
+                            return analyzeConcatenated(tmp.absolutePath, headMs, tailMs, durationMs)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "analysis of partial file failed (${e.message}), using the full file")
+                            progress = "nouvel essai avec le fichier complet"
+                        }
+                    }
+                }
+                tmp.delete()
+                progress = "téléchargement complet"
+                downloadFull(uri, tmp)
+                return analyzeFile(tmp.absolutePath, headMs, tailMs, durationMs)
+            } finally {
+                tmp.delete()
+            }
         } finally {
             progress = "idle"
         }
     }
 
-    private fun analyzeInternal(
-        uri: String, headMs: Long, tailMs: Long, cacheDir: File, durationMs: Long, partial: Boolean,
-    ): Map<String, Any?> {
-        val started = System.currentTimeMillis()
-        val isRemote = uri.startsWith("http://") || uri.startsWith("https://")
-        val tmp = if (isRemote) File.createTempFile("automix", ".audio", cacheDir) else null
+    private class Opened(val extractor: MediaExtractor, val codec: MediaCodec, val format: MediaFormat) {
+        fun close() {
+            try { codec.stop() } catch (_: Exception) {}
+            try { codec.release() } catch (_: Exception) {}
+            try { extractor.release() } catch (_: Exception) {}
+        }
+    }
+
+    private fun openDecoder(path: String): Opened {
         val extractor = MediaExtractor()
         try {
-            if (tmp != null) {
-                progress = "connexion au serveur"
-                download(uri, tmp, if (partial) durationMs else -1, headMs, tailMs)
-                Log.i(TAG, "downloaded ${tmp.length() / 1024} KB in ${System.currentTimeMillis() - started} ms")
-                progress = "lecture du fichier"
-                extractor.setDataSource(tmp.absolutePath)
-            } else {
-                progress = "lecture du fichier local"
-                extractor.setDataSource(uri.removePrefix("file://"))
+            extractor.setDataSource(path)
+            var format: MediaFormat? = null
+            for (i in 0 until extractor.trackCount) {
+                val f = extractor.getTrackFormat(i)
+                if (f.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true) {
+                    extractor.selectTrack(i); format = f; break
+                }
             }
+            if (format == null) throw IllegalArgumentException("no audio track")
+            val codec = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME)!!)
+            codec.configure(format, null, null, 0)
+            codec.start()
+            return Opened(extractor, codec, format)
+        } catch (e: Exception) {
+            extractor.release()
+            throw e
+        }
+    }
+
+    /**
+     * [path] holds the start of the track immediately followed by its end. Decodes it in one go
+     * (no seeking), the first [headMs] are the head region, the last [tailMs] the tail region,
+     * aligned so that they end at [durationMs].
+     */
+    private fun analyzeConcatenated(path: String, headMs: Long, tailMs: Long, durationMs: Long): Map<String, Any?> {
+        val started = System.currentTimeMillis()
+        progress = "décodage"
+        val d = openDecoder(path)
+        val all = try { decode(d.extractor, d.codec, 0L, Long.MAX_VALUE, seek = false, label = "décodage") } finally { d.close() }
+        val rate = all.sampleRate
+        val headCount = min(all.samples.size, (headMs / 1000.0 * rate).toInt())
+        val tailCount = min(all.samples.size - headCount, (tailMs / 1000.0 * rate).toInt())
+        // the decoder must have gone through both parts (some stop at the junction)
+        if (all.samples.size < (headMs + tailMs) / 1000.0 * rate * 0.95) {
+            throw IllegalStateException("only ${(all.samples.size / rate).toInt()} s decoded")
+        }
+        if (headCount < rate * 10 || tailCount < rate * 10) throw IllegalStateException("not enough audio decoded")
+        val head = DecodedRegion(all.samples.copyOfRange(0, headCount), rate, 0L)
+        val tailSamples = all.samples.copyOfRange(all.samples.size - tailCount, all.samples.size)
+        val tailStartUs = durationMs * 1000 - (tailCount / rate * 1e6).toLong()
+        val tail = DecodedRegion(tailSamples, rate, tailStartUs)
+        progress = "calcul du tempo"
+        val out = HashMap<String, Any?>()
+        out["durationMs"] = durationMs.toDouble()
+        out["head"] = regionToMap(head)
+        out["tail"] = regionToMap(tail)
+        Log.i(TAG, "analyzed partial file in ${System.currentTimeMillis() - started} ms")
+        return out
+    }
+
+    /** Analysis of a complete file, seeking to its end. */
+    private fun analyzeFile(path: String, headMs: Long, tailMs: Long, knownDurationMs: Long): Map<String, Any?> {
+        val started = System.currentTimeMillis()
+        val extractor = MediaExtractor()
+        try {
+            progress = "lecture du fichier"
+            extractor.setDataSource(path)
             var trackIndex = -1
             var format: MediaFormat? = null
             for (i in 0 until extractor.trackCount) {
@@ -155,7 +222,8 @@ object AutoMixAnalyzer {
             }
             if (trackIndex < 0 || format == null) throw IllegalArgumentException("no audio track")
             extractor.selectTrack(trackIndex)
-            val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else -1L
+            val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION)
+                else if (knownDurationMs > 0) knownDurationMs * 1000 else -1L
 
             val mime = format.getString(MediaFormat.KEY_MIME)!!
             val codec = MediaCodec.createDecoderByType(mime)
@@ -164,15 +232,18 @@ object AutoMixAnalyzer {
             try {
                 val headEnd = if (durationUs > 0) min(headMs * 1000, durationUs) else headMs * 1000
                 progress = "décodage du début"
-                val head = decode(extractor, codec, 0L, headEnd)
+                val head = decode(extractor, codec, 0L, headEnd, seek = false, label = "décodage du début")
 
                 var tail: DecodedRegion? = null
                 if (durationUs > 0) {
                     val tailStart = max(headEnd, durationUs - tailMs * 1000)
                     if (durationUs - tailStart > 6_000_000L) {
-                        codec.flush()
+                        // a fresh decoder: reusing one after end-of-stream doesn't work on every device
                         progress = "décodage de la fin"
-                        tail = decode(extractor, codec, tailStart, Long.MAX_VALUE)
+                        val d = openDecoder(path)
+                        try {
+                            tail = decode(d.extractor, d.codec, tailStart, Long.MAX_VALUE, seek = true, label = "décodage de la fin")
+                        } finally { d.close() }
                     }
                 }
 
@@ -181,7 +252,7 @@ object AutoMixAnalyzer {
                 progress = "calcul du tempo"
                 out["head"] = regionToMap(head)
                 out["tail"] = tail?.let { regionToMap(it) }
-                Log.i(TAG, "analyzed in ${System.currentTimeMillis() - started} ms: $uri".replace(Regex("ApiKey=[^&]+"), "ApiKey=***"))
+                Log.i(TAG, "analyzed file in ${System.currentTimeMillis() - started} ms")
                 return out
             } finally {
                 try { codec.stop() } catch (_: Exception) {}
@@ -189,7 +260,6 @@ object AutoMixAnalyzer {
             }
         } finally {
             extractor.release()
-            tmp?.delete()
         }
     }
 
@@ -210,8 +280,12 @@ object AutoMixAnalyzer {
     }
 
     /** Decodes [startUs, endUs) to mono, decimated to ~11 kHz. */
-    private fun decode(extractor: MediaExtractor, codec: MediaCodec, startUs: Long, endUs: Long): DecodedRegion {
-        extractor.seekTo(startUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+    private fun decode(
+        extractor: MediaExtractor, codec: MediaCodec, startUs: Long, endUs: Long, seek: Boolean, label: String,
+    ): DecodedRegion {
+        if (seek) extractor.seekTo(startUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+        // without seeking, timestamps may jump (concatenated file): keep every buffer
+        val filterByTime = seek || endUs != Long.MAX_VALUE
         val info = MediaCodec.BufferInfo()
         var inputDone = false
         var outputDone = false
@@ -265,9 +339,11 @@ object AutoMixAnalyzer {
                     buf.limit(info.offset + info.size)
                     buf.order(ByteOrder.nativeOrder())
                     val pts = info.presentationTimeUs
-                    if (info.size > 0 && pts >= startUs && (endUs == Long.MAX_VALUE || pts < endUs)) {
-                        if (regionStartUs < 0) regionStartUs = pts
+                    if (info.size > 0 && (!filterByTime || (pts >= startUs && (endUs == Long.MAX_VALUE || pts < endUs)))) {
+                        if (regionStartUs < 0) regionStartUs = if (seek) pts else startUs
                         lastOutputUs = pts
+                        val done = decimator!!.size / (sampleRate.toDouble() / factor)
+                        progress = "$label : ${done.toInt()} s"
                         val d = decimator!!
                         if (isFloat) {
                             val fb = buf.asFloatBuffer()

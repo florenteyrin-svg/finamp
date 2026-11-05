@@ -143,7 +143,12 @@ class AutoMixEngine {
     }
     _logger.info("Preparing transition for queue position $current → $next");
     _status("Analyse du morceau actuel et du suivant…");
-    unawaited(_prepare(key, sources[current], sources[next], next));
+    unawaited(
+      _prepare(key, sources[current], sources[next], next).catchError((Object e, StackTrace st) {
+        _logger.warning("Preparing the transition failed: $e", e, st);
+        _status("Erreur interne : $e");
+      }),
+    );
   }
 
   Future<void> _prepare(String key, AudioSource current, AudioSource next, int nextIndex) async {

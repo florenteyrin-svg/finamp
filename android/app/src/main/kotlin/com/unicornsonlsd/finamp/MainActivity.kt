@@ -22,6 +22,8 @@ import com.unicornsonlsd.finamp.automix.AutoMixAnalyzer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.launch
@@ -215,7 +217,14 @@ class MainActivity : AudioServiceActivity() {
                         automixScope.launch {
                             var failure: String? = null
                             val analysis = try {
-                                automixLimiter.withPermit { AutoMixAnalyzer.analyze(uri, headMs, tailMs, applicationContext.cacheDir, durationMs) }
+                                automixLimiter.withPermit {
+                                    // a stuck native call must not block the following analyses
+                                    val job = automixScope.async(Dispatchers.IO) {
+                                        AutoMixAnalyzer.analyze(uri, headMs, tailMs, applicationContext.cacheDir, durationMs)
+                                    }
+                                    withTimeoutOrNull(75_000) { job.await() }
+                                        ?: throw IllegalStateException("analyse bloquée à l'étape : ${AutoMixAnalyzer.progress}")
+                                }
                             } catch (e: Throwable) {
                                 Log.w("AutoMixAnalyzer", "analysis failed", e)
                                 failure = "${e.javaClass.simpleName}: ${e.message}"
