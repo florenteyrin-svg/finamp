@@ -60,7 +60,7 @@ class AutoMixPlanner {
       // start the incoming track once the outgoing one has dropped ~8 dB
       final dropIdx = outSmooth.lastIndexWhere((e) => e >= outLoud - 8);
       var mixStart = dropIdx < 0 ? outFadeStartMs : tail.timeOfFrame(dropIdx + 1);
-      mixStart = mixStart.clamp(outContentEndMs - 9000, outContentEndMs - 2500).toDouble();
+      mixStart = mixStart.clamp(outContentEndMs - 10000, outContentEndMs - 6000).toDouble();
       mixStart = max(mixStart, tail.startMs);
       final length = outContentEndMs - mixStart;
       // if the incoming track starts loud, fade it in over the first part
@@ -82,7 +82,7 @@ class AutoMixPlanner {
 
     if (inIntroLengthMs >= 3000) {
       // abrupt ending but soft intro: let the intro rise under the last seconds
-      final length = min(4000.0, outContentEndMs - tail.startMs);
+      final length = min(6000.0, outContentEndMs - tail.startMs);
       return AutoMixPlan(
         mode: AutoMixMode.blend,
         outMixStartMs: outContentEndMs - length,
@@ -99,7 +99,7 @@ class AutoMixPlanner {
     }
 
     // ---- both ends are "hard": just glue them together tightly ----
-    const length = 1200.0;
+    const length = 2500.0;
     return AutoMixPlan(
       mode: AutoMixMode.quick,
       outMixStartMs: max(tail.startMs, outContentEndMs - length),
@@ -144,15 +144,20 @@ class AutoMixPlanner {
     var beats = steady && tail.bpm >= 112 ? 16 : 8;
 
     // the blend should be finished when the outgoing track stops "playing"
-    final targetEnd = min(outContentEndMs, outFadeStartMs + 2 * outBeat);
+    // (or, failing that, when it actually ends)
     double? mixStart;
-    while (beats >= 4) {
-      final candidate = tail.downbeatAtOrBefore(targetEnd - beats * outBeat);
-      if (candidate >= tail.startMs + outBeat) {
-        mixStart = candidate;
-        break;
+    for (final targetEnd in [min(outContentEndMs, outFadeStartMs + 4 * outBeat), outContentEndMs]) {
+      var b = beats;
+      while (b >= 8 && mixStart == null) {
+        final candidate = tail.downbeatAtOrBefore(targetEnd - b * outBeat);
+        if (candidate >= tail.startMs + outBeat) {
+          mixStart = candidate;
+          beats = b;
+        } else {
+          b ~/= 2;
+        }
       }
-      beats ~/= 2;
+      if (mixStart != null) break;
     }
     if (mixStart == null) return null;
     final mixEnd = min(mixStart + beats * outBeat, outContentEndMs);

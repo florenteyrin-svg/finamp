@@ -16,7 +16,6 @@ class _Cancelled implements Exception {}
 class AutoMixHost {
   AutoMixHost({
     required this.player,
-    required this.mainEqualizer,
     required this.baseVolume,
     required this.setMixVolume,
     required this.isAllowed,
@@ -26,9 +25,6 @@ class AutoMixHost {
   });
 
   final AudioPlayer player;
-
-  /// Equalizer in the main player's pipeline (used for the bass swap), if any.
-  final AndroidEqualizer? mainEqualizer;
 
   /// Effective volume of the main player (user volume × replay gain × fades), without the mix factor.
   final double Function() baseVolume;
@@ -115,7 +111,7 @@ class AutoMixEngine {
     for (final s in _subscriptions) {
       s.cancel();
     }
-    _overlay?.dispose();
+    unawaited(_disposeOverlay());
   }
 
   // ---------------------------------------------------------------------------
@@ -264,14 +260,30 @@ class AutoMixEngine {
     if (generation != _generation) throw _Cancelled();
   }
 
-  Future<void> _ensureOverlay() async {
-    if (_overlay != null) return;
-    _overlayEq = _host.mainEqualizer != null ? AndroidEqualizer() : null;
-    _overlay = AudioPlayer(
+  /// A fresh overlay player for every transition: audio effects of a stopped/reused
+  /// just_audio player can't be touched again (their native objects are released).
+  Future<AudioPlayer> _newOverlay() async {
+    await _disposeOverlay();
+    final eq = AndroidEqualizer();
+    final overlay = AudioPlayer(
       handleInterruptions: false,
       handleAudioSessionActivation: false,
-      audioPipeline: AudioPipeline(androidAudioEffects: [if (_overlayEq != null) _overlayEq!]),
+      audioPipeline: AudioPipeline(androidAudioEffects: [eq]),
     );
+    _overlay = overlay;
+    _overlayEq = eq;
+    return overlay;
+  }
+
+  Future<void> _disposeOverlay() async {
+    final old = _overlay;
+    _overlay = null;
+    _overlayEq = null;
+    if (old != null) {
+      try {
+        await old.dispose();
+      } catch (_) {}
+    }
   }
 
   Future<void> _run(
@@ -291,8 +303,7 @@ class AutoMixEngine {
     var handedOff = false;
     try {
       // 1. load the outgoing track in the overlay player, paused just before the sync point
-      await _ensureOverlay();
-      final overlay = _overlay!;
+      final overlay = await _newOverlay();
       await overlay.setVolume(0);
       await overlay.setSpeed(speed);
       await overlay.setAudioSource(
@@ -301,17 +312,20 @@ class AutoMixEngine {
         preload: true,
       );
       _check(gen);
-      final eqMain = _host.mainEqualizer;
-      final eqOverlay = _overlayEq;
-      final bassMain = eqMain == null ? null : await _BassControl.create(eqMain);
-      final bassOverlay = eqOverlay == null ? null : await _BassControl.create(eqOverlay);
       _check(gen);
+      const _BassControl? bassMain = null; // no equalizer on the main player (see _newOverlay)
+      _BassControl? bassOverlay;
 
       // 2. start the overlay exactly when the main player reaches the same position
       await _waitForMainPosition(overlayStart, gen);
       unawaited(overlay.play());
       await _delay(min(300, overlayLead / 2), gen);
       if (overlayLead >= 1200) await _syncOverlayToMain(overlay, speed, gen);
+
+      // the overlay has an audio session now, its equalizer can be used
+      final eqOverlay = _overlayEq;
+      if (eqOverlay != null) bassOverlay = await _BassControl.create(eqOverlay);
+      _check(gen);
 
       // 3. handoff: main → overlay (same audio, so a very short crossfade is inaudible)
       await _waitForMainPosition(handoffAt, gen);
@@ -380,7 +394,7 @@ class AutoMixEngine {
       _logger.info("Transition finished");
       _status("Transition terminée (${plan.description})");
       _rampSpeedBack(from: _main.speed, to: speed);
-      unawaited(overlay.stop());
+      unawaited(_disposeOverlay());
     } on _Cancelled {
       _logger.info("Transition cancelled");
       _status("Transition annulée");
@@ -394,6 +408,7 @@ class AutoMixEngine {
       }
     } catch (e, st) {
       _logger.warning("Transition failed: $e", e, st);
+      if (identical(_planned, planned)) _planned = null; // don't retry a failing transition
       _status("Erreur pendant la transition : $e");
       await _cleanup(resumeMain: _holding);
     } finally {
@@ -512,10 +527,7 @@ class AutoMixEngine {
       await _overlay?.pause();
     } catch (_) {}
     await _host.setMixVolume(1);
-    try {
-      await _host.mainEqualizer?.setEnabled(false);
-      await _overlayEq?.setEnabled(false);
-    } catch (_) {}
+    unawaited(_disposeOverlay());
     if (restore != null && _main.speed != restore) await _main.setSpeed(restore);
     if (resumeMain && wasHolding) unawaited(_main.play());
   }
@@ -671,7 +683,19 @@ class _BassControl {
     }
   }
 
+  bool _broken = false;
+
   Future<void> setCut(double amount) async {
+    if (_broken) return;
+    try {
+      await _setCut(amount);
+    } catch (e) {
+      _broken = true;
+      Logger("AutoMix").warning("Equalizer failed, continuing without bass control: $e");
+    }
+  }
+
+  Future<void> _setCut(double amount) async {
     final a = amount.clamp(0.0, 1.0);
     if ((a - _current).abs() < 0.04 && !(a == 0 && _current != 0) && !(a == 1 && _current != 1)) return;
     _current = a;
@@ -685,10 +709,13 @@ class _BassControl {
   }
 
   Future<void> reset() async {
-    for (final (band, _) in _bands) {
-      await band.setGain(0);
-    }
-    await _eq.setEnabled(false);
+    if (_broken) return;
+    try {
+      for (final (band, _) in _bands) {
+        await band.setGain(0);
+      }
+      await _eq.setEnabled(false);
+    } catch (_) {}
     _enabled = false;
     _current = 0;
   }

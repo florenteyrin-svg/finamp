@@ -153,8 +153,6 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   late final List<DarwinAudioEffect> _iosAudioEffects;
   late final AndroidLoudnessEnhancer? _loudnessEnhancerEffect;
 
-  /// Equalizer used by AutoMix for the bass swap (only present when AutoMix was enabled at startup).
-  AndroidEqualizer? _autoMixEqualizer;
   AutoMixEngine? _autoMix;
   bool get _autoMixHolds => _autoMix?.holdsPlayback ?? false;
 
@@ -338,13 +336,6 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       _androidAudioEffects.add(_loudnessEnhancerEffect!);
     } else {
       _loudnessEnhancerEffect = null;
-    }
-
-    if (Platform.isAndroid &&
-        FinampSettingsHelper.finampSettings.autoMixEnabled &&
-        !FinampSettingsHelper.finampSettings.forceAudioOffloadingOnAndroid) {
-      _autoMixEqualizer = AndroidEqualizer();
-      _androidAudioEffects.add(_autoMixEqualizer!);
     }
 
     _audioPipeline = AudioPipeline(androidAudioEffects: _androidAudioEffects, darwinAudioEffects: _iosAudioEffects);
@@ -567,7 +558,6 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       _autoMix = AutoMixEngine(
         AutoMixHost(
           player: _player,
-          mainEqualizer: _autoMixEqualizer,
           baseVolume: () => _volume.baseVolume,
           setMixVolume: _volume.setMixVolume,
           isAllowed: () =>

@@ -82,7 +82,7 @@ void main() {
     final plan = planner.plan(outgoing: out, incoming: inc, outDurationMs: 300000)!;
     expect(plan.mode, AutoMixMode.blend);
     expect(plan.incomingRate, 1);
-    expect(plan.lengthMs, inInclusiveRange(2500, 9000));
+    expect(plan.lengthMs, inInclusiveRange(6000, 10000));
   });
 
   test("hard ending and hard start: quick transition that removes silence", () {
