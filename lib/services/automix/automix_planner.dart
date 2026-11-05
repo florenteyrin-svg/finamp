@@ -223,7 +223,7 @@ class AutoMixPlanner {
 
     // ---- classic DJ blend at the end of the outgoing track ----
     final steady = tail.confidence >= 0.6 && head.confidence >= 0.6;
-    var beats = steady && tail.bpm >= 112 ? 16 : 8;
+    var beats = steady && tail.bpm >= 118 ? 16 : 8;
     double? mixStart;
     for (final targetEnd in [min(outContentEndMs, outFadeStartMs + 4 * outBeat), outContentEndMs]) {
       var b = beats;
@@ -255,8 +255,9 @@ class AutoMixPlanner {
       outgoingRate: outRate,
       beatRatio: ratio,
       bassSwapFraction: null,
-      inFadeFraction: 0.45,
-      outFadeStartFraction: 0.5,
+      // equal power crossfade with a short "both at full volume" moment (no EQ to separate them)
+      inFadeFraction: 0.55,
+      outFadeStartFraction: 0.35,
       outBeatPeriodMs: outBeat,
       inBeatPeriodMs: inBeat,
       description: "beatmatch $beats temps, $tempo",

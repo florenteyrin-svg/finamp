@@ -181,7 +181,10 @@ class AutoMixRegion {
 }
 
 class AutoMixAnalysis {
-  AutoMixAnalysis({required this.durationMs, required this.head, required this.tail});
+  AutoMixAnalysis({required this.durationMs, required this.head, required this.tail, this.tailTiming});
+
+  /// How the end region was positioned in time ("pts", "fin", "fichier complet"), for diagnostics.
+  final String? tailTiming;
 
   final double? durationMs;
   final AutoMixRegion head;
@@ -193,6 +196,7 @@ class AutoMixAnalysis {
     durationMs: (map["durationMs"] as num?)?.toDouble(),
     head: AutoMixRegion.fromMap(map["head"] as Map<dynamic, dynamic>),
     tail: map["tail"] == null ? null : AutoMixRegion.fromMap(map["tail"] as Map<dynamic, dynamic>),
+    tailTiming: map["tailTiming"] as String?,
   );
 
   Map<String, dynamic> toMap() => {
@@ -200,6 +204,7 @@ class AutoMixAnalysis {
     "durationMs": durationMs,
     "head": head.toMap(),
     "tail": tail?.toMap(),
+    "tailTiming": tailTiming,
   };
 }
 

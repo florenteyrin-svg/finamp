@@ -93,6 +93,10 @@ class AutoMixEngine {
   _PlannedTransition? _planned;
   String? _planKey;
   bool _running = false;
+
+  /// Delay between asking the main player to play and its audio actually starting, learned
+  /// from the phase error measured right after previous starts.
+  double _startLatencyMs = 60;
   bool _tooLateReported = false;
   bool _holding = false;
   Timer? _speedRamp;
@@ -360,7 +364,10 @@ class AutoMixEngine {
         unawaited(_disposeOverlay());
         return;
       }
-      final cueDelay = (plan.outMixStartMs - overlay.position.inMilliseconds) / overlay.speed;
+      // start a bit early to compensate the start latency measured on previous transitions
+      final cueDelay =
+          (plan.outMixStartMs - overlay.position.inMilliseconds) / overlay.speed -
+          (plan.mode == AutoMixMode.beatmatch ? _startLatencyMs : 0);
       if (cueDelay > 0) await _delay(cueDelay, gen);
       unawaited(_main.play());
       _setHolding(false);
@@ -372,6 +379,7 @@ class AutoMixEngine {
       final startedAt = DateTime.now();
       var lastPhaseFix = DateTime.now();
       var lastPhaseLog = DateTime(2000);
+      double? firstError;
       while (true) {
         _check(gen);
         final outPos = overlay.position.inMilliseconds.toDouble();
@@ -386,7 +394,15 @@ class AutoMixEngine {
             DateTime.now().difference(startedAt).inMilliseconds > 250 &&
             DateTime.now().difference(lastPhaseFix).inMilliseconds >= 200) {
           lastPhaseFix = DateTime.now();
-          final err = await _fixPhase(plan, overlay, incomingSpeed);
+          // while the incoming track is still quiet, lock fast (stronger tempo nudges are inaudible)
+          final quiet = plan.incomingGain(p) < 0.4;
+          final err = await _fixPhase(plan, overlay, incomingSpeed, maxNudge: quiet ? 0.08 : 0.015);
+          if (err != null && firstError == null) {
+            firstError = err;
+            // learn the start latency for the next transitions (smoothed, bounded)
+            _startLatencyMs = (_startLatencyMs + 0.6 * -err).clamp(0.0, 250.0).toDouble();
+            _trace("Départ : décalage ${err.round()} ms (compensation suivante ${_startLatencyMs.round()} ms)");
+          }
           if (err != null && DateTime.now().difference(lastPhaseLog).inMilliseconds >= 1000) {
             lastPhaseLog = DateTime.now();
             _trace("Calage : décalage ${err.round()} ms, vitesse ${_main.speed.toStringAsFixed(3)}");
@@ -462,7 +478,12 @@ class AutoMixEngine {
 
   /// Keeps the incoming beats on top of the outgoing ones by slightly nudging the incoming tempo.
   /// Returns the measured phase error (ms), or null if it couldn't be measured.
-  Future<double?> _fixPhase(AutoMixPlan plan, AudioPlayer overlay, double incomingSpeed) async {
+  Future<double?> _fixPhase(
+    AutoMixPlan plan,
+    AudioPlayer overlay,
+    double incomingSpeed, {
+    double maxNudge = 0.015,
+  }) async {
     if (!_main.playing || _main.processingState != ProcessingState.ready) return null;
     final period = plan.inBeatPeriodMs;
     if (period == null) return null;
@@ -473,8 +494,8 @@ class AutoMixEngine {
     error = error - period * (error / period).roundToDouble();
     double target = incomingSpeed;
     if (error.abs() > 8) {
-      // remove the error over ~1.2 s, never more than 1.5 % tempo change (inaudible)
-      target = incomingSpeed * (1 - (error / 1200).clamp(-0.015, 0.015));
+      // remove the error over ~0.8 s, within the allowed tempo nudge
+      target = incomingSpeed * (1 - (error / 800).clamp(-maxNudge, maxNudge));
     }
     if ((target - _main.speed).abs() > 0.0005) await _main.setSpeed(target);
     return error;
@@ -608,7 +629,8 @@ class AutoMixEngine {
     final h = a.head;
     final t = a.tail;
     return "(début ${h.bpm.toStringAsFixed(0)} BPM ${(h.confidence * 100).round()} %"
-        "${t == null ? "" : ", fin ${t.bpm.toStringAsFixed(0)} BPM ${(t.confidence * 100).round()} %"})";
+        "${t == null ? "" : ", fin ${t.bpm.toStringAsFixed(0)} BPM ${(t.confidence * 100).round()} %"}"
+        "${a.tailTiming == null ? "" : ", calage fin : ${a.tailTiming}"})";
   }
 
   static String _describeUri(Uri uri) {

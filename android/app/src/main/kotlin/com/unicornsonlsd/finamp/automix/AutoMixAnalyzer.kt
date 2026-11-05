@@ -24,7 +24,13 @@ object AutoMixAnalyzer {
     private const val TARGET_RATE = 11025.0
     private const val TIMEOUT_US = 10_000L
 
-    class DecodedRegion(val samples: FloatArray, val sampleRate: Double, val startUs: Long)
+    class DecodedRegion(
+        val samples: FloatArray,
+        val sampleRate: Double,
+        val startUs: Long,
+        /** (index of the first decimated sample of an output buffer, its presentation time) */
+        val marks: List<Pair<Int, Long>> = emptyList(),
+    )
 
     private const val MAX_DOWNLOAD_BYTES = 150L * 1024 * 1024
 
@@ -194,13 +200,29 @@ object AutoMixAnalyzer {
         if (headCount < rate * 10 || tailCount < rate * 10) throw IllegalStateException("not enough audio decoded")
         val head = DecodedRegion(all.samples.copyOfRange(0, headCount), rate, 0L)
         val tailSamples = all.samples.copyOfRange(all.samples.size - tailCount, all.samples.size)
-        val tailStartUs = durationMs * 1000 - (tailCount / rate * 1e6).toLong()
+        val tailIndex = all.samples.size - tailCount
+        // Containers like FLAC carry absolute sample positions in each frame, so the decoder's
+        // timestamps jump at the junction and stay exact: prefer them over the end alignment.
+        val firstPts = all.marks.firstOrNull()?.second ?: 0L
+        val lastPts = all.marks.lastOrNull()?.second ?: 0L
+        val decodedUs = (all.samples.size / rate * 1e6).toLong()
+        val ptsJump = lastPts - firstPts > decodedUs + 5_000_000L && lastPts <= durationMs * 1000 + 3_000_000L
+        val mark = all.marks.lastOrNull { it.first <= tailIndex }
+        val tailTiming: String
+        val tailStartUs = if (ptsJump && mark != null && mark.second > firstPts + decodedUs / 2) {
+            tailTiming = "pts"
+            mark.second + ((tailIndex - mark.first) / rate * 1e6).toLong()
+        } else {
+            tailTiming = "fin"
+            durationMs * 1000 - (tailCount / rate * 1e6).toLong()
+        }
         val tail = DecodedRegion(tailSamples, rate, tailStartUs)
         progress = "calcul du tempo"
         val out = HashMap<String, Any?>()
         out["durationMs"] = durationMs.toDouble()
         out["head"] = regionToMap(head)
         out["tail"] = regionToMap(tail)
+        out["tailTiming"] = tailTiming
         Log.i(TAG, "analyzed partial file in ${System.currentTimeMillis() - started} ms")
         return out
     }
@@ -298,6 +320,7 @@ object AutoMixAnalyzer {
         var factor = 1
         var regionStartUs = -1L
         var lastOutputUs = -1L
+        val marks = ArrayList<Pair<Int, Long>>()
 
         fun applyFormat(f: MediaFormat) {
             sampleRate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
@@ -346,6 +369,7 @@ object AutoMixAnalyzer {
                         val done = decimator!!.size / (sampleRate.toDouble() / factor)
                         progress = "$label : ${done.toInt()} s"
                         val d = decimator!!
+                        marks.add(d.size to pts)
                         if (isFloat) {
                             val fb = buf.asFloatBuffer()
                             val frames = fb.remaining() / channels
@@ -371,6 +395,6 @@ object AutoMixAnalyzer {
         }
         val d = decimator ?: throw IllegalStateException("decoder produced no audio")
         if (lastOutputUs < 0) throw IllegalStateException("no audio in requested range")
-        return DecodedRegion(d.toArray(), sampleRate.toDouble() / factor, regionStartUs)
+        return DecodedRegion(d.toArray(), sampleRate.toDouble() / factor, regionStartUs, marks)
     }
 }
