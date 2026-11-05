@@ -210,6 +210,7 @@ class AutoMixEngine {
       outUri: outUri,
       nextIndex: nextIndex,
       nextId: inId,
+      outId: outId,
       outTag: current is UriAudioSource ? current.tag : null,
     );
   }
@@ -247,7 +248,21 @@ class AutoMixEngine {
     final overlayLead = min(_overlayLeadMs, max(500.0, available - 1200 - handoffLead));
     if (!_host.isAllowed()) return;
     // the queue must still be what we planned for
-    if (_main.nextIndex != planned.nextIndex || _main.loopMode == LoopMode.one) {
+    // the queue must still be what we planned for: same playing track, same next track (by item id,
+    // indices can shift when the queue is rebuilt)
+    final sources = _main.audioSources;
+    final cur = _main.currentIndex;
+    final nxt = _main.nextIndex;
+    final curItem = cur == null || cur >= sources.length ? null : _queueItemOf(sources[cur]);
+    final nextItem = nxt == null || nxt >= sources.length ? null : _queueItemOf(sources[nxt]);
+    final sameTracks =
+        curItem != null &&
+        nextItem != null &&
+        _itemId(curItem) == planned.outId &&
+        _itemId(nextItem) == planned.nextId &&
+        nxt == planned.nextIndex;
+    if (!sameTracks || _main.loopMode == LoopMode.one) {
+      if (!sameTracks) _trace("File d'attente changée, nouveau plan");
       _planned = null;
       _planKey = null;
       _onSequenceChanged();
@@ -396,7 +411,7 @@ class AutoMixEngine {
           lastPhaseFix = DateTime.now();
           // while the incoming track is still quiet, lock fast (stronger tempo nudges are inaudible)
           final quiet = plan.incomingGain(p) < 0.4;
-          final err = await _fixPhase(plan, overlay, incomingSpeed, maxNudge: quiet ? 0.08 : 0.015);
+          final err = await _fixPhase(plan, overlay, incomingSpeed, maxNudge: quiet ? 0.04 : 0.012);
           if (err != null && firstError == null) {
             firstError = err;
             // learn the start latency for the next transitions (smoothed, bounded)
@@ -494,8 +509,9 @@ class AutoMixEngine {
     error = error - period * (error / period).roundToDouble();
     double target = incomingSpeed;
     if (error.abs() > 8) {
-      // remove the error over ~0.8 s, within the allowed tempo nudge
-      target = incomingSpeed * (1 - (error / 800).clamp(-maxNudge, maxNudge));
+      // remove the error over ~1.5 s, within the allowed tempo nudge (gentle: positions are
+      // measured with some delay, a strong correction overshoots)
+      target = incomingSpeed * (1 - (error / 1500).clamp(-maxNudge, maxNudge));
     }
     if ((target - _main.speed).abs() > 0.0005) await _main.setSpeed(target);
     return error;
@@ -691,8 +707,12 @@ class _PlannedTransition {
     required this.outUri,
     required this.nextIndex,
     required this.nextId,
+    required this.outId,
     required this.outTag,
   });
+
+  /// Jellyfin item id of the outgoing track.
+  final String outId;
 
   final AutoMixPlan plan;
   final Uri outUri;

@@ -190,7 +190,7 @@ class AutoMixAnalysis {
   final AutoMixRegion head;
   final AutoMixRegion? tail;
 
-  static const int formatVersion = 2;
+  static const int formatVersion = 3;
 
   factory AutoMixAnalysis.fromMap(Map<dynamic, dynamic> map) => AutoMixAnalysis(
     durationMs: (map["durationMs"] as num?)?.toDouble(),

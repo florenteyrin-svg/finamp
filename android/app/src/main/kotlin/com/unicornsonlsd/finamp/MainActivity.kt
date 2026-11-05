@@ -222,7 +222,7 @@ class MainActivity : AudioServiceActivity() {
                                     val job = automixScope.async(Dispatchers.IO) {
                                         AutoMixAnalyzer.analyze(uri, headMs, tailMs, applicationContext.cacheDir, durationMs)
                                     }
-                                    withTimeoutOrNull(75_000) { job.await() }
+                                    withTimeoutOrNull(150_000) { job.await() }
                                         ?: throw IllegalStateException("analyse bloquée à l'étape : ${AutoMixAnalyzer.progress}")
                                 }
                             } catch (e: Throwable) {

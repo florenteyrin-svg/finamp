@@ -118,9 +118,26 @@ object AutoMixAnalyzer {
     fun analyze(uri: String, headMs: Long, tailMs: Long, cacheDir: File, durationMs: Long = -1): Map<String, Any?> {
         val isRemote = uri.startsWith("http://") || uri.startsWith("https://")
         try {
-            if (!isRemote) return analyzeFile(uri.removePrefix("file://"), headMs, tailMs, durationMs)
+            if (!isRemote) {
+                return try {
+                    analyzeWhole(uri.removePrefix("file://"), headMs, tailMs)
+                } catch (e: Exception) {
+                    Log.w(TAG, "whole-file analysis failed (${e.message}), seeking instead")
+                    analyzeFile(uri.removePrefix("file://"), headMs, tailMs, durationMs)
+                }
+            }
             val tmp = File.createTempFile("automix", ".audio", cacheDir)
             try {
+                // Precise path: the whole file, decoded from the start like the player does,
+                // so beat positions are sample-accurate.
+                try {
+                    progress = "téléchargement complet"
+                    downloadFull(uri, tmp)
+                    return analyzeWhole(tmp.absolutePath, headMs, tailMs)
+                } catch (e: Exception) {
+                    Log.w(TAG, "whole-file analysis failed (${e.message}), trying partial download")
+                    tmp.delete()
+                }
                 if (durationMs > 0) {
                     progress = "connexion au serveur"
                     val partial = try {
@@ -227,6 +244,34 @@ object AutoMixAnalyzer {
         return out
     }
 
+    /**
+     * Decodes the whole file from its start without seeking: time = sample count, exactly what the
+     * player plays. Head = first [headMs], tail = last [tailMs].
+     */
+    private fun analyzeWhole(path: String, headMs: Long, tailMs: Long): Map<String, Any?> {
+        val started = System.currentTimeMillis()
+        val d = openDecoder(path)
+        val all = try {
+            decode(d.extractor, d.codec, 0L, Long.MAX_VALUE, seek = false, label = "décodage complet", maxMs = 60_000, allowPartial = false)
+        } finally { d.close() }
+        val rate = all.sampleRate
+        val total = all.samples.size
+        if (total < rate * 20) throw IllegalStateException("track too short")
+        val headCount = min(total, (headMs / 1000.0 * rate).toInt())
+        val tailCount = min(total - min(headCount, total / 2), (tailMs / 1000.0 * rate).toInt())
+        val head = DecodedRegion(all.samples.copyOfRange(0, headCount), rate, 0L)
+        val tailIndex = total - tailCount
+        val tail = DecodedRegion(all.samples.copyOfRange(tailIndex, total), rate, (tailIndex / rate * 1e6).toLong())
+        progress = "calcul du tempo"
+        val out = HashMap<String, Any?>()
+        out["durationMs"] = total / rate * 1000.0
+        out["head"] = regionToMap(head)
+        out["tail"] = regionToMap(tail)
+        out["tailTiming"] = "exact"
+        Log.i(TAG, "analyzed whole file in ${System.currentTimeMillis() - started} ms")
+        return out
+    }
+
     /** Analysis of a complete file, seeking to its end. */
     private fun analyzeFile(path: String, headMs: Long, tailMs: Long, knownDurationMs: Long): Map<String, Any?> {
         val started = System.currentTimeMillis()
@@ -305,6 +350,8 @@ object AutoMixAnalyzer {
     /** Decodes [startUs, endUs) to mono, decimated to ~11 kHz. */
     private fun decode(
         extractor: MediaExtractor, codec: MediaCodec, startUs: Long, endUs: Long, seek: Boolean, label: String,
+        maxMs: Long = 30_000,
+        allowPartial: Boolean = true,
     ): DecodedRegion {
         if (seek) extractor.seekTo(startUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
         // without seeking, timestamps may jump (concatenated file): keep every buffer
@@ -323,7 +370,13 @@ object AutoMixAnalyzer {
         val marks = ArrayList<Pair<Int, Long>>()
 
         fun applyFormat(f: MediaFormat) {
-            sampleRate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+            val newRate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+            if (decimator != null && newRate == sampleRate) {
+                // format re-announced (e.g. after the first buffer): keep what was decoded
+                channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                return
+            }
+            sampleRate = newRate
             channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
             isFloat = f.containsKey(MediaFormat.KEY_PCM_ENCODING) &&
                 f.getInteger(MediaFormat.KEY_PCM_ENCODING) == AudioFormat.ENCODING_PCM_FLOAT
@@ -332,10 +385,10 @@ object AutoMixAnalyzer {
             decimator = AutoMixDsp.Decimator(factor, (seconds * sampleRate / factor).toInt() + 1024)
         }
 
-        val deadline = System.currentTimeMillis() + 30_000
+        val deadline = System.currentTimeMillis() + maxMs
         while (!outputDone) {
             if (System.currentTimeMillis() > deadline) {
-                if (decimator != null && lastOutputUs >= 0) break // keep what we have
+                if (allowPartial && decimator != null && lastOutputUs >= 0) break // keep what we have
                 throw IllegalStateException("decoder timeout")
             }
             if (!inputDone) {
