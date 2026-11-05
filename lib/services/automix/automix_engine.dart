@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:logging/logging.dart';
 
@@ -61,6 +62,13 @@ class AutoMixEngine {
 
   static final _logger = Logger("AutoMix");
 
+  /// Human readable (French) status, shown in the settings to help diagnose problems.
+  static final status = ValueNotifier<String>("En attente d'un morceau");
+
+  static void _status(String text) {
+    status.value = "${DateTime.now().toIso8601String().substring(11, 19)} · $text";
+  }
+
   final AutoMixHost _host;
   final _analysis = AutoMixAnalysisService();
   final _subscriptions = <StreamSubscription<dynamic>>[];
@@ -76,6 +84,7 @@ class AutoMixEngine {
   _PlannedTransition? _planned;
   String? _planKey;
   bool _running = false;
+  bool _tooLateReported = false;
   bool _holding = false;
   Timer? _speedRamp;
   double? _restoreSpeed;
@@ -112,7 +121,14 @@ class AutoMixEngine {
     if (key == _planKey) return;
     _planKey = key;
     _planned = null;
-    if (next == null || next >= sources.length) return;
+    _tooLateReported = false;
+    if (next == null || next >= sources.length) {
+      _logger.info("No next track (or repeat one), nothing to mix");
+      _status("Pas de morceau suivant dans la file (ou répétition d'un titre)");
+      return;
+    }
+    _logger.info("Preparing transition for queue position $current → $next");
+    _status("Analyse du morceau actuel et du suivant…");
     unawaited(_prepare(key, sources[current], sources[next], next));
   }
 
@@ -121,10 +137,15 @@ class AutoMixEngine {
     final inItem = _queueItemOf(next);
     final outUri = _uriOf(current);
     final inUri = _uriOf(next);
-    if (outItem == null || inItem == null || outUri == null || inUri == null) return;
+    if (outItem == null || inItem == null || outUri == null || inUri == null) {
+      _logger.warning("Unsupported audio source, can't mix");
+      _status("Source audio non prise en charge");
+      return;
+    }
 
     if (_host.keepAlbumsGapless() && _isAlbumContinuation(outItem, inItem)) {
       _logger.info("Next track continues the album, keeping gapless playback");
+      _status("Morceau suivant = suite de l'album → pas de mix (réglage « Albums sans mix »)");
       return;
     }
 
@@ -138,6 +159,10 @@ class AutoMixEngine {
     if (key != _planKey) return; // queue changed meanwhile
     if (outAnalysis == null || inAnalysis == null) {
       _logger.info("No analysis available, keeping gapless playback");
+      _status(
+        "Échec de l'analyse (${outAnalysis == null ? "morceau actuel" : "morceau suivant"}) : "
+        "${_analysis.lastError ?? "?"}",
+      );
       return;
     }
     final plan = AutoMixPlanner(
@@ -145,9 +170,11 @@ class AutoMixEngine {
     ).plan(outgoing: outAnalysis, incoming: inAnalysis, outDurationMs: _main.duration?.inMilliseconds.toDouble());
     if (plan == null) {
       _logger.info("No suitable transition found, keeping gapless playback");
+      _status("Aucune transition adaptée trouvée → enchaînement normal");
       return;
     }
     _logger.info("Planned: $plan");
+    _status("Prêt : ${plan.description}, à ${_fmt(plan.outMixStartMs)} du morceau");
     _planned = _PlannedTransition(
       plan: plan,
       outUri: outUri,
@@ -170,13 +197,21 @@ class AutoMixEngine {
     if (planned == null || _running) return;
     if (!_main.playing || _main.processingState != ProcessingState.ready) return;
     final pos = position.inMilliseconds.toDouble();
-    final handoffAt = planned.plan.outMixStartMs - _handoffLeadMs;
-    final startAt = handoffAt - _overlayLeadMs - _prepareLeadMs;
+    final mixStart = planned.plan.outMixStartMs;
+    final startAt = mixStart - _handoffLeadMs - _overlayLeadMs - _prepareLeadMs;
     if (pos < startAt) return;
-    if (pos > handoffAt - _overlayLeadMs + 300) {
-      // too late for a clean, synchronised handoff (e.g. the user seeked near the end)
+    // time left before the mix point; shorter leads when the user jumped close to the end
+    final available = mixStart - pos;
+    if (available < 3200) {
+      // too late for a clean, synchronised handoff
+      if (!_tooLateReported) {
+        _tooLateReported = true;
+        _status("Trop tard pour mixer ce morceau (saut trop près de la fin)");
+      }
       return;
     }
+    final handoffLead = min(_handoffLeadMs, max(1500.0, (available - 1200) * 0.55));
+    final overlayLead = min(_overlayLeadMs, max(500.0, available - 1200 - handoffLead));
     if (!_host.isAllowed()) return;
     // the queue must still be what we planned for
     if (_main.nextIndex != planned.nextIndex || _main.loopMode == LoopMode.one) {
@@ -187,7 +222,7 @@ class AutoMixEngine {
     }
     _running = true;
     final generation = ++_generation;
-    unawaited(_run(planned, generation));
+    unawaited(_run(planned, generation, handoffLead: handoffLead, overlayLead: overlayLead));
   }
 
   // ---------------------------------------------------------------------------
@@ -208,14 +243,20 @@ class AutoMixEngine {
     );
   }
 
-  Future<void> _run(_PlannedTransition planned, int gen) async {
+  Future<void> _run(
+    _PlannedTransition planned,
+    int gen, {
+    required double handoffLead,
+    required double overlayLead,
+  }) async {
     final plan = planned.plan;
     final speed = _main.speed;
     _restoreSpeed = speed;
     _speedRamp?.cancel();
-    final handoffAt = plan.outMixStartMs - _handoffLeadMs;
-    final overlayStart = handoffAt - _overlayLeadMs;
+    final handoffAt = plan.outMixStartMs - handoffLead;
+    final overlayStart = handoffAt - overlayLead;
     _logger.info("Starting transition: $plan");
+    _status("Transition en cours : ${plan.description}");
     var handedOff = false;
     try {
       // 1. load the outgoing track in the overlay player, paused just before the sync point
@@ -238,8 +279,8 @@ class AutoMixEngine {
       // 2. start the overlay exactly when the main player reaches the same position
       await _waitForMainPosition(overlayStart, gen);
       unawaited(overlay.play());
-      await _delay(300, gen);
-      await _syncOverlayToMain(overlay, speed, gen);
+      await _delay(min(300, overlayLead / 2), gen);
+      if (overlayLead >= 1200) await _syncOverlayToMain(overlay, speed, gen);
 
       // 3. handoff: main → overlay (same audio, so a very short crossfade is inaudible)
       await _waitForMainPosition(handoffAt, gen);
@@ -306,10 +347,12 @@ class AutoMixEngine {
       await bassMain?.reset();
       await bassOverlay?.reset();
       _logger.info("Transition finished");
+      _status("Transition terminée (${plan.description})");
       _rampSpeedBack(from: _main.speed, to: speed);
       unawaited(overlay.stop());
     } on _Cancelled {
       _logger.info("Transition cancelled");
+      _status("Transition annulée");
       if (gen == _generation) {
         // cancelled by ourselves (e.g. playback paused before the handoff): silence the overlay
         try {
@@ -320,6 +363,7 @@ class AutoMixEngine {
       }
     } catch (e, st) {
       _logger.warning("Transition failed: $e", e, st);
+      _status("Erreur pendant la transition : $e");
       await _cleanup(resumeMain: _holding);
     } finally {
       if (gen == _generation) {
@@ -486,6 +530,11 @@ class AutoMixEngine {
       await _delay(15, gen);
     }
     return true;
+  }
+
+  static String _fmt(double ms) {
+    final t = (ms / 1000).round();
+    return "${t ~/ 60}:${(t % 60).toString().padLeft(2, "0")}";
   }
 
   static FinampQueueItem? _queueItemOf(AudioSource source) {

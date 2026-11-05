@@ -8,6 +8,7 @@ import 'package:finamp/components/finamp_app_bar_back_button.dart';
 import 'package:finamp/l10n/app_localizations.dart';
 import 'package:finamp/services/finamp_settings_helper.dart';
 import 'package:finamp/services/music_player_background_task.dart';
+import 'package:finamp/services/automix/automix_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,6 +43,7 @@ class _AudioServiceSettingsScreenState extends State<AudioServiceSettingsScreen>
           if (Platform.isAndroid) const AutoMixToggle(),
           if (Platform.isAndroid) const AutoMixKeepAlbumsGaplessToggle(),
           if (Platform.isAndroid) const AutoMixAllowTempoChangeToggle(),
+          if (Platform.isAndroid) const AutoMixStatusTile(),
           const TrackShuffleItemCountEditor(),
           const AudioFadeInDurationListTile(),
           const AudioFadeOutDurationListTile(),
@@ -321,6 +323,18 @@ class AutoMixAllowTempoChangeToggle extends ConsumerWidget {
       subtitle: Text(AppLocalizations.of(context)!.autoMixAllowTempoChangeSubtitle),
       value: ref.watch(finampSettingsProvider.autoMixAllowTempoChange),
       onChanged: ref.watch(finampSettingsProvider.autoMixEnabled) ? FinampSetters.setAutoMixAllowTempoChange : null,
+    );
+  }
+}
+
+class AutoMixStatusTile extends StatelessWidget {
+  const AutoMixStatusTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: AutoMixEngine.status,
+      builder: (context, status, _) => ListTile(title: const Text("État AutoMix"), subtitle: Text(status)),
     );
   }
 }

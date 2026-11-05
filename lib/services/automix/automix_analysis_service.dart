@@ -17,6 +17,9 @@ class AutoMixAnalysisService {
   final _memory = <String, AutoMixAnalysis>{};
   final _inFlight = <String, Future<AutoMixAnalysis?>>{};
   final _failed = <String, DateTime>{};
+
+  /// Last analysis error, for diagnostics.
+  String? lastError;
   Directory? _cacheDir;
 
   static const _memoryEntries = 64;
@@ -86,6 +89,7 @@ class AutoMixAnalysisService {
       return analysis;
     } catch (e) {
       _logger.warning("Analysis of $itemId failed: $e");
+      lastError = e is PlatformException ? (e.message ?? e.code) : e.toString();
       _failed[itemId] = DateTime.now();
       return null;
     }

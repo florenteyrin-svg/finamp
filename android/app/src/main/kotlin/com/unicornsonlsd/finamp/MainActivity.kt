@@ -212,15 +212,17 @@ class MainActivity : AudioServiceActivity() {
                         result.error("INVALID_ARGUMENT", "uri is required", null)
                     } else {
                         automixScope.launch {
+                            var failure: String? = null
                             val analysis = try {
                                 automixLimiter.withPermit { AutoMixAnalyzer.analyze(uri, headMs, tailMs) }
                             } catch (e: Throwable) {
-                                Log.w("AutoMixAnalyzer", "analysis failed: ${e.message}")
+                                Log.w("AutoMixAnalyzer", "analysis failed", e)
+                                failure = "${e.javaClass.simpleName}: ${e.message}"
                                 null
                             }
                             withContext(Dispatchers.Main) {
                                 if (analysis != null) result.success(analysis)
-                                else result.error("ANALYSIS_FAILED", "analysis failed", null)
+                                else result.error("ANALYSIS_FAILED", failure, null)
                             }
                         }
                     }
