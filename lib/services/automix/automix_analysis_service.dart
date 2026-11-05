@@ -35,7 +35,10 @@ class AutoMixAnalysisService {
   }
 
   /// Returns the analysis of [itemId], decoding [uri] if needed. Never throws.
-  Future<AutoMixAnalysis?> analyze(String itemId, Uri uri) {
+  /// Receives progress messages from the native analyzer while it runs.
+  void Function(String)? onProgress;
+
+  Future<AutoMixAnalysis?> analyze(String itemId, Uri uri, {double? durationMs}) {
     final hit = _memory[itemId];
     if (hit != null) return Future.value(hit);
     final pending = _inFlight[itemId];
@@ -44,12 +47,12 @@ class AutoMixAnalysisService {
     if (failedAt != null && DateTime.now().difference(failedAt) < const Duration(minutes: 10)) {
       return Future.value(null);
     }
-    final future = _analyze(itemId, uri).whenComplete(() => _inFlight.remove(itemId));
+    final future = _analyze(itemId, uri, durationMs).whenComplete(() => _inFlight.remove(itemId));
     _inFlight[itemId] = future;
     return future;
   }
 
-  Future<AutoMixAnalysis?> _analyze(String itemId, Uri uri) async {
+  Future<AutoMixAnalysis?> _analyze(String itemId, Uri uri, double? durationMs) async {
     // disk cache
     File? file;
     try {
@@ -67,11 +70,22 @@ class AutoMixAnalysisService {
     }
 
     final stopwatch = Stopwatch()..start();
+    String? lastProgress;
+    final poll = Timer.periodic(const Duration(seconds: 1), (_) async {
+      try {
+        final progress = await _channel.invokeMethod<String>("progress");
+        if (progress != null && progress != lastProgress && progress != "idle") {
+          lastProgress = progress;
+          onProgress?.call("${(stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(0)} s · $progress");
+        }
+      } catch (_) {}
+    });
     try {
       final result = await _channel.invokeMethod<Map<dynamic, dynamic>>("analyze", {
         "uri": uri.isScheme("file") ? uri.toFilePath() : uri.toString(),
         "headMs": 30000,
         "tailMs": 45000,
+        "durationMs": durationMs?.round() ?? -1,
       }).timeout(const Duration(seconds: 90));
       if (result == null) return null;
       final analysis = AutoMixAnalysis.fromMap(result);
@@ -96,6 +110,8 @@ class AutoMixAnalysisService {
           : e.toString();
       _failed[itemId] = DateTime.now();
       return null;
+    } finally {
+      poll.cancel();
     }
   }
 

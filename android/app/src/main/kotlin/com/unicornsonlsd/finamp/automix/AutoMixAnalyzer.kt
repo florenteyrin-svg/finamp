@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import android.util.Log
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.ByteOrder
@@ -27,45 +28,121 @@ object AutoMixAnalyzer {
 
     private const val MAX_DOWNLOAD_BYTES = 150L * 1024 * 1024
 
-    /** Downloads [url] to [target] with explicit timeouts (MediaExtractor's own HTTP stack can hang forever). */
-    private fun download(url: String, target: File) {
+    /** What the analyzer is doing right now (polled by Dart for the AutoMix log). */
+    @Volatile
+    var progress: String = "idle"
+
+    private fun open(url: String, range: String?): HttpURLConnection {
+        @Suppress("DEPRECATION")
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 15_000
         conn.readTimeout = 20_000
         conn.instanceFollowRedirects = true
-        try {
-            val code = conn.responseCode
-            if (code !in 200..299) throw IOException("HTTP $code")
-            if (conn.contentLengthLong > MAX_DOWNLOAD_BYTES) throw IOException("file too large (${conn.contentLengthLong / 1048576} MB)")
-            var total = 0L
-            conn.inputStream.use { input ->
-                target.outputStream().use { out ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        total += n
-                        if (total > MAX_DOWNLOAD_BYTES) throw IOException("file too large")
-                        out.write(buf, 0, n)
-                    }
-                }
+        if (range != null) conn.setRequestProperty("Range", range)
+        return conn
+    }
+
+    /** Copies the response body to [file] at [offset]. Returns the number of bytes written. */
+    private fun copyTo(conn: HttpURLConnection, file: RandomAccessFile, offset: Long, label: String, limit: Long): Long {
+        var total = 0L
+        file.seek(offset)
+        conn.inputStream.use { input ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                total += n
+                if (total > limit) throw IOException("file too large")
+                file.write(buf, 0, n)
+                progress = "$label: ${total / 1024} Ko"
             }
-        } finally {
-            conn.disconnect()
+        }
+        return total
+    }
+
+    /**
+     * Downloads only the start and the end of [url] (HTTP range requests) into a file of the full size,
+     * so the platform extractor can decode both regions. Falls back to a full download when the server
+     * doesn't support ranges or the file is small.
+     */
+    private fun download(url: String, target: File, durationMs: Long, headMs: Long, tailMs: Long) {
+        RandomAccessFile(target, "rw").use { file ->
+            if (durationMs <= 0) {
+                val conn = open(url, null)
+                try {
+                    if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
+                    copyTo(conn, file, 0, "téléchargement complet", MAX_DOWNLOAD_BYTES)
+                } finally { conn.disconnect() }
+                return
+            }
+            // first request: tells us the size, and gets the start of the file
+            val probe = open(url, "bytes=0-1")
+            val total: Long
+            try {
+                val code = probe.responseCode
+                if (code == 200) {
+                    // no range support: take the whole body
+                    copyTo(probe, file, 0, "téléchargement complet", MAX_DOWNLOAD_BYTES)
+                    return
+                }
+                if (code != 206) throw IOException("HTTP $code")
+                val cr = probe.getHeaderField("Content-Range") ?: throw IOException("no Content-Range")
+                total = cr.substringAfter('/').trim().toLong()
+            } finally { probe.disconnect() }
+
+            val bytesPerMs = total.toDouble() / durationMs
+            val margin = 768L * 1024
+            val headBytes = ((headMs + 5000) * bytesPerMs).toLong() + margin
+            val tailBytes = ((tailMs + 10000) * bytesPerMs).toLong() + margin
+            file.setLength(total)
+            if (headBytes + tailBytes >= total) {
+                val conn = open(url, null)
+                try { copyTo(conn, file, 0, "téléchargement complet", MAX_DOWNLOAD_BYTES) } finally { conn.disconnect() }
+                return
+            }
+            val c1 = open(url, "bytes=0-${headBytes - 1}")
+            try {
+                if (c1.responseCode != 206) throw IOException("HTTP ${c1.responseCode}")
+                copyTo(c1, file, 0, "téléchargement du début", headBytes + 1)
+            } finally { c1.disconnect() }
+            val tailStart = total - tailBytes
+            val c2 = open(url, "bytes=$tailStart-")
+            try {
+                if (c2.responseCode != 206) throw IOException("HTTP ${c2.responseCode}")
+                copyTo(c2, file, tailStart, "téléchargement de la fin", tailBytes + 1)
+            } finally { c2.disconnect() }
         }
     }
 
-    fun analyze(uri: String, headMs: Long, tailMs: Long, cacheDir: File): Map<String, Any?> {
+    fun analyze(uri: String, headMs: Long, tailMs: Long, cacheDir: File, durationMs: Long = -1): Map<String, Any?> {
+        return try {
+            analyzeInternal(uri, headMs, tailMs, cacheDir, durationMs, partial = true)
+        } catch (e: Exception) {
+            if (!(uri.startsWith("http://") || uri.startsWith("https://")) || durationMs <= 0) throw e
+            Log.w(TAG, "partial analysis failed (${e.message}), retrying with the full file")
+            progress = "nouvel essai avec le fichier complet (${e.message})"
+            analyzeInternal(uri, headMs, tailMs, cacheDir, -1, partial = false)
+        } finally {
+            progress = "idle"
+        }
+    }
+
+    private fun analyzeInternal(
+        uri: String, headMs: Long, tailMs: Long, cacheDir: File, durationMs: Long, partial: Boolean,
+    ): Map<String, Any?> {
         val started = System.currentTimeMillis()
         val isRemote = uri.startsWith("http://") || uri.startsWith("https://")
         val tmp = if (isRemote) File.createTempFile("automix", ".audio", cacheDir) else null
         val extractor = MediaExtractor()
         try {
             if (tmp != null) {
-                download(uri, tmp)
+                progress = "connexion au serveur"
+                download(uri, tmp, if (partial) durationMs else -1, headMs, tailMs)
                 Log.i(TAG, "downloaded ${tmp.length() / 1024} KB in ${System.currentTimeMillis() - started} ms")
+                progress = "lecture du fichier"
                 extractor.setDataSource(tmp.absolutePath)
             } else {
+                progress = "lecture du fichier local"
                 extractor.setDataSource(uri.removePrefix("file://"))
             }
             var trackIndex = -1
@@ -86,6 +163,7 @@ object AutoMixAnalyzer {
             codec.start()
             try {
                 val headEnd = if (durationUs > 0) min(headMs * 1000, durationUs) else headMs * 1000
+                progress = "décodage du début"
                 val head = decode(extractor, codec, 0L, headEnd)
 
                 var tail: DecodedRegion? = null
@@ -93,12 +171,14 @@ object AutoMixAnalyzer {
                     val tailStart = max(headEnd, durationUs - tailMs * 1000)
                     if (durationUs - tailStart > 6_000_000L) {
                         codec.flush()
+                        progress = "décodage de la fin"
                         tail = decode(extractor, codec, tailStart, Long.MAX_VALUE)
                     }
                 }
 
                 val out = HashMap<String, Any?>()
                 out["durationMs"] = if (durationUs > 0) durationUs / 1000.0 else null
+                progress = "calcul du tempo"
                 out["head"] = regionToMap(head)
                 out["tail"] = tail?.let { regionToMap(it) }
                 Log.i(TAG, "analyzed in ${System.currentTimeMillis() - started} ms: $uri".replace(Regex("ApiKey=[^&]+"), "ApiKey=***"))

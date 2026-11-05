@@ -10,6 +10,7 @@ import 'package:finamp/services/finamp_settings_helper.dart';
 import 'package:finamp/services/music_player_background_task.dart';
 import 'package:finamp/services/automix/automix_engine.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AudioServiceSettingsScreen extends StatefulWidget {
@@ -334,7 +335,49 @@ class AutoMixStatusTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: AutoMixEngine.status,
-      builder: (context, status, _) => ListTile(title: const Text("État AutoMix"), subtitle: Text(status)),
+      builder: (context, status, _) => ListTile(
+        title: const Text("État AutoMix"),
+        subtitle: Text("$status\n(toucher pour voir le journal)"),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AutoMixLogScreen())),
+      ),
+    );
+  }
+}
+
+class AutoMixLogScreen extends StatelessWidget {
+  const AutoMixLogScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<String>>(
+      valueListenable: AutoMixEngine.log,
+      builder: (context, lines, _) => Scaffold(
+        appBar: AppBar(
+          title: const Text("Journal AutoMix"),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.copy),
+              tooltip: "Copier",
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: lines.join("\n")));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Journal copié")));
+                }
+              },
+            ),
+          ],
+        ),
+        body: lines.isEmpty
+            ? const Center(child: Text("Rien pour l'instant. Lance une playlist."))
+            : ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: lines.length,
+                itemBuilder: (context, i) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: SelectableText(lines[i], style: const TextStyle(fontFamily: "monospace", fontSize: 12)),
+                ),
+              ),
+      ),
     );
   }
 }

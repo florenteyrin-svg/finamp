@@ -208,13 +208,14 @@ class MainActivity : AudioServiceActivity() {
                     val uri = call.argument<String>("uri")
                     val headMs = (call.argument<Number>("headMs") ?: 30000).toLong()
                     val tailMs = (call.argument<Number>("tailMs") ?: 45000).toLong()
+                    val durationMs = (call.argument<Number>("durationMs") ?: -1).toLong()
                     if (uri == null) {
                         result.error("INVALID_ARGUMENT", "uri is required", null)
                     } else {
                         automixScope.launch {
                             var failure: String? = null
                             val analysis = try {
-                                automixLimiter.withPermit { AutoMixAnalyzer.analyze(uri, headMs, tailMs, applicationContext.cacheDir) }
+                                automixLimiter.withPermit { AutoMixAnalyzer.analyze(uri, headMs, tailMs, applicationContext.cacheDir, durationMs) }
                             } catch (e: Throwable) {
                                 Log.w("AutoMixAnalyzer", "analysis failed", e)
                                 failure = "${e.javaClass.simpleName}: ${e.message}"
@@ -227,6 +228,7 @@ class MainActivity : AudioServiceActivity() {
                         }
                     }
                 }
+                "progress" -> result.success(AutoMixAnalyzer.progress)
                 else -> result.notImplemented()
             }
         }

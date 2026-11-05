@@ -55,6 +55,7 @@ class AutoMixHost {
 /// (equalizer) and the incoming tempo are automated until the overlay stops.
 class AutoMixEngine {
   AutoMixEngine(this._host) {
+    _analysis.onProgress = (p) => _status("Analyse : $p");
     _subscriptions.add(_host.player.sequenceStateStream.listen((_) => _onSequenceChanged()));
     _subscriptions.add(_host.player.positionStream.listen(_onPosition));
     _subscriptions.add(_host.player.loopModeStream.listen((_) => _onSequenceChanged()));
@@ -65,8 +66,21 @@ class AutoMixEngine {
   /// Human readable (French) status, shown in the settings to help diagnose problems.
   static final status = ValueNotifier<String>("En attente d'un morceau");
 
+  /// Recent AutoMix events (newest last), shown in the settings.
+  static final log = ValueNotifier<List<String>>(const []);
+
   static void _status(String text) {
-    status.value = "${DateTime.now().toIso8601String().substring(11, 19)} · $text";
+    final line = "${DateTime.now().toIso8601String().substring(11, 19)} · $text";
+    status.value = line;
+    final lines = [...log.value, line];
+    log.value = lines.length > 80 ? lines.sublist(lines.length - 80) : lines;
+  }
+
+  /// Adds a line to the log without changing the headline status.
+  static void _trace(String text) {
+    final line = "${DateTime.now().toIso8601String().substring(11, 19)} · $text";
+    final lines = [...log.value, line];
+    log.value = lines.length > 80 ? lines.sublist(lines.length - 80) : lines;
   }
 
   final AutoMixHost _host;
@@ -154,8 +168,20 @@ class AutoMixEngine {
     if (outId == null || inId == null) return;
 
     // analyse outgoing first (its end is needed soonest), then incoming
-    final outAnalysis = await _analysis.analyze(outId, _analysisUri(outUri));
-    final inAnalysis = await _analysis.analyze(inId, _analysisUri(inUri));
+    _trace("Morceau actuel : ${outItem.item.title} (${_describeUri(outUri)})");
+    final outAnalysis = await _analysis.analyze(
+      outId,
+      _analysisUri(outUri),
+      durationMs: outItem.item.duration?.inMilliseconds.toDouble(),
+    );
+    _trace(outAnalysis == null ? "Analyse du morceau actuel : échec" : "Analyse du morceau actuel : OK ${_describe(outAnalysis)}");
+    _trace("Morceau suivant : ${inItem.item.title}");
+    final inAnalysis = await _analysis.analyze(
+      inId,
+      _analysisUri(inUri),
+      durationMs: inItem.item.duration?.inMilliseconds.toDouble(),
+    );
+    _trace(inAnalysis == null ? "Analyse du morceau suivant : échec" : "Analyse du morceau suivant : OK ${_describe(inAnalysis)}");
     if (key != _planKey) return; // queue changed meanwhile
     if (outAnalysis == null || inAnalysis == null) {
       _logger.info("No analysis available, keeping gapless playback");
@@ -530,6 +556,19 @@ class AutoMixEngine {
       await _delay(15, gen);
     }
     return true;
+  }
+
+  static String _describe(AutoMixAnalysis a) {
+    final h = a.head;
+    final t = a.tail;
+    return "(début ${h.bpm.toStringAsFixed(0)} BPM ${(h.confidence * 100).round()} %"
+        "${t == null ? "" : ", fin ${t.bpm.toStringAsFixed(0)} BPM ${(t.confidence * 100).round()} %"})";
+  }
+
+  static String _describeUri(Uri uri) {
+    if (uri.isScheme("file")) return "fichier téléchargé";
+    if (uri.path.endsWith("main.m3u8")) return "streaming transcodé";
+    return "streaming direct";
   }
 
   static String _fmt(double ms) {
