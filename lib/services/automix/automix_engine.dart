@@ -473,8 +473,8 @@ class AutoMixEngine {
     error = error - period * (error / period).roundToDouble();
     double target = incomingSpeed;
     if (error.abs() > 8) {
-      // remove the error over ~1.2 s, never more than 3 % tempo change
-      target = incomingSpeed * (1 - (error / 1200).clamp(-0.03, 0.03));
+      // remove the error over ~1.2 s, never more than 1.5 % tempo change (inaudible)
+      target = incomingSpeed * (1 - (error / 1200).clamp(-0.015, 0.015));
     }
     if ((target - _main.speed).abs() > 0.0005) await _main.setSpeed(target);
     return error;
@@ -516,7 +516,8 @@ class AutoMixEngine {
       _restoreSpeed = null;
       return;
     }
-    final steps = (from - to).abs() > 0.03 ? 60 : 40; // 12 s for big changes, else 8 s
+    // glide back to the original tempo slowly enough not to be noticed (~45 s)
+    const steps = 225;
     var k = 0;
     _speedRamp = Timer.periodic(const Duration(milliseconds: 200), (t) {
       k++;

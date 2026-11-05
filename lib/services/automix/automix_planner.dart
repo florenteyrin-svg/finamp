@@ -9,11 +9,8 @@ class AutoMixPlanner {
 
   final bool allowTempoChange;
 
-  /// Max tempo difference that is bridged with a tempo ramp (±). Each track moves half of it.
-  static const maxRateChange = 0.16;
-
-  /// Below this, only the incoming track is adjusted (no ramp on the outgoing one).
-  static const smallRateChange = 0.03;
+  /// Max tempo change applied to the incoming track to sync it to the playing one (±).
+  static const maxRateChange = 0.12;
   static const minBeatConfidence = 0.45;
 
   /// [outDurationMs] is the duration of the outgoing track as known by the player.
@@ -177,9 +174,10 @@ class AutoMixPlanner {
     final ratio = tail.bpm / inBpm;
     final maxChange = allowTempoChange ? maxRateChange : 0.008;
     if ((ratio - 1).abs() > maxChange) return null;
-    // small differences: only the incoming track moves; bigger ones: both meet halfway (tempo ramp)
-    final outRate = (ratio - 1).abs() <= smallRateChange ? 1.0 : 1 / sqrt(ratio);
-    final inRate = ratio * outRate;
+    // like a DJ "sync": the playing track is never touched, the incoming one is set to its tempo
+    // before it becomes audible
+    const outRate = 1.0;
+    final inRate = ratio;
 
     final outBeat = tail.beatPeriodMs;
     final inBeat = head.beatPeriodMs;

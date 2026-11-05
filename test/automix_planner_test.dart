@@ -129,16 +129,20 @@ void main() {
     expect(b.tail!.energyDb.length, a.tail!.energyDb.length);
   });
 
-  test("tempos 16 % apart are bridged with a tempo ramp on both tracks", () {
+  test("tempos 11 % apart: only the incoming track is synced (DJ sync), the playing one is untouched", () {
+    final out = track(durationMs: 300000, bpm: 126, energyAt: (ms) => ms < 299000 ? -12 : -90);
+    final inc = track(durationMs: 280000, bpm: 113, energyAt: (ms) => -12);
+    final plan = planner.plan(outgoing: out, incoming: inc, outDurationMs: 300000)!;
+    expect(plan.mode, AutoMixMode.beatmatch);
+    expect(plan.outgoingRate, 1);
+    expect(113 * plan.incomingRate, closeTo(126, 1e-6));
+  });
+
+  test("tempos more than 12 % apart are not synced", () {
     final out = track(durationMs: 300000, bpm: 110, energyAt: (ms) => ms < 299000 ? -12 : -90);
     final inc = track(durationMs: 280000, bpm: 126, energyAt: (ms) => -12);
     final plan = planner.plan(outgoing: out, incoming: inc, outDurationMs: 300000)!;
-    expect(plan.mode, AutoMixMode.beatmatch);
-    expect(plan.beatRatio, closeTo(110 / 126, 1e-9));
-    // both move halfway: tempos meet
-    expect(110 * plan.outgoingRate, closeTo(126 * plan.incomingRate, 1e-6));
-    expect(plan.outgoingRate, greaterThan(1));
-    expect(plan.incomingRate, lessThan(1));
+    expect(plan.mode, isNot(AutoMixMode.beatmatch));
   });
 
   test("vocal handover: incoming vocals land on the bar right after the outgoing vocals end", () {

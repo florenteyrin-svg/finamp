@@ -3854,7 +3854,7 @@
         "description": "AutoMix setting subtitle"
     },
     "autoMixAllowTempoChangeTitle": "Match tempo",
-    "autoMixAllowTempoChangeSubtitle": "Gradual tempo ramp (up to 16% apart, each track moves half way) so beats line up. The pitch is preserved.",
+    "autoMixAllowTempoChangeSubtitle": "Like a DJ software SYNC button: the next track takes the tempo of the playing one (up to 12%) before it becomes audible, then slowly glides back. The playing track is never changed.",
     "@autoMixAllowTempoChangeTitle": {
         "description": "AutoMix setting title"
     },
