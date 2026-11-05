@@ -214,7 +214,7 @@ class MainActivity : AudioServiceActivity() {
                         automixScope.launch {
                             var failure: String? = null
                             val analysis = try {
-                                automixLimiter.withPermit { AutoMixAnalyzer.analyze(uri, headMs, tailMs) }
+                                automixLimiter.withPermit { AutoMixAnalyzer.analyze(uri, headMs, tailMs, applicationContext.cacheDir) }
                             } catch (e: Throwable) {
                                 Log.w("AutoMixAnalyzer", "analysis failed", e)
                                 failure = "${e.javaClass.simpleName}: ${e.message}"

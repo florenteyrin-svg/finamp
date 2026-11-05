@@ -5,6 +5,10 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.util.Log
+import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.ByteOrder
 import kotlin.math.max
 import kotlin.math.min
@@ -21,12 +25,46 @@ object AutoMixAnalyzer {
 
     class DecodedRegion(val samples: FloatArray, val sampleRate: Double, val startUs: Long)
 
-    fun analyze(uri: String, headMs: Long, tailMs: Long): Map<String, Any?> {
+    private const val MAX_DOWNLOAD_BYTES = 150L * 1024 * 1024
+
+    /** Downloads [url] to [target] with explicit timeouts (MediaExtractor's own HTTP stack can hang forever). */
+    private fun download(url: String, target: File) {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.connectTimeout = 15_000
+        conn.readTimeout = 20_000
+        conn.instanceFollowRedirects = true
+        try {
+            val code = conn.responseCode
+            if (code !in 200..299) throw IOException("HTTP $code")
+            if (conn.contentLengthLong > MAX_DOWNLOAD_BYTES) throw IOException("file too large (${conn.contentLengthLong / 1048576} MB)")
+            var total = 0L
+            conn.inputStream.use { input ->
+                target.outputStream().use { out ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        total += n
+                        if (total > MAX_DOWNLOAD_BYTES) throw IOException("file too large")
+                        out.write(buf, 0, n)
+                    }
+                }
+            }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    fun analyze(uri: String, headMs: Long, tailMs: Long, cacheDir: File): Map<String, Any?> {
         val started = System.currentTimeMillis()
+        val isRemote = uri.startsWith("http://") || uri.startsWith("https://")
+        val tmp = if (isRemote) File.createTempFile("automix", ".audio", cacheDir) else null
         val extractor = MediaExtractor()
         try {
-            if (uri.startsWith("http://") || uri.startsWith("https://")) {
-                extractor.setDataSource(uri, HashMap<String, String>())
+            if (tmp != null) {
+                download(uri, tmp)
+                Log.i(TAG, "downloaded ${tmp.length() / 1024} KB in ${System.currentTimeMillis() - started} ms")
+                extractor.setDataSource(tmp.absolutePath)
             } else {
                 extractor.setDataSource(uri.removePrefix("file://"))
             }
@@ -71,6 +109,7 @@ object AutoMixAnalyzer {
             }
         } finally {
             extractor.release()
+            tmp?.delete()
         }
     }
 
@@ -115,8 +154,12 @@ object AutoMixAnalyzer {
             decimator = AutoMixDsp.Decimator(factor, (seconds * sampleRate / factor).toInt() + 1024)
         }
 
-        var guard = 0
-        while (!outputDone && guard++ < 2_000_000) {
+        val deadline = System.currentTimeMillis() + 30_000
+        while (!outputDone) {
+            if (System.currentTimeMillis() > deadline) {
+                if (decimator != null && lastOutputUs >= 0) break // keep what we have
+                throw IllegalStateException("decoder timeout")
+            }
             if (!inputDone) {
                 val inIndex = codec.dequeueInputBuffer(TIMEOUT_US)
                 if (inIndex >= 0) {

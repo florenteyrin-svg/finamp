@@ -72,7 +72,7 @@ class AutoMixAnalysisService {
         "uri": uri.isScheme("file") ? uri.toFilePath() : uri.toString(),
         "headMs": 30000,
         "tailMs": 45000,
-      });
+      }).timeout(const Duration(seconds: 90));
       if (result == null) return null;
       final analysis = AutoMixAnalysis.fromMap(result);
       _logger.info(
@@ -89,7 +89,11 @@ class AutoMixAnalysisService {
       return analysis;
     } catch (e) {
       _logger.warning("Analysis of $itemId failed: $e");
-      lastError = e is PlatformException ? (e.message ?? e.code) : e.toString();
+      lastError = e is PlatformException
+          ? (e.message ?? e.code)
+          : e is TimeoutException
+          ? "délai dépassé (90 s)"
+          : e.toString();
       _failed[itemId] = DateTime.now();
       return null;
     }
