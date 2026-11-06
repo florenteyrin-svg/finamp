@@ -66,7 +66,11 @@ android {
                 if (keystoreProperties['storeFile'] == null) {
                     signingConfig signingConfigs.debug
                 }
-                applicationIdSuffix '.plus'
+                // FINAMP_PLUS_SAME_ID: keep the official id, so Android Auto treats it as the Play Store app
+                // (the official Finamp must be uninstalled first)
+                if (System.getenv('FINAMP_PLUS_SAME_ID') != 'true') {
+                    applicationIdSuffix '.plus'
+                }
                 resValue "string", "app_name", "Finamp+"
             } else {
                 resValue "string", "app_name", "Finamp"
