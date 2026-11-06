@@ -3844,5 +3844,21 @@
     "searchSourceAppleMusic": "Apple Music",
     "@searchSourceAppleMusic": {
         "description": "Search source switch: only search the Apple Music catalogue (served through Allstarr)"
+    },
+    "catalogAddToJellyfin": "Add to Jellyfin",
+    "@catalogAddToJellyfin": {
+        "description": "Apple Music item button / message (Allstarr): Add to Jellyfin"
+    },
+    "catalogAddedToJellyfin": "Added to Jellyfin",
+    "@catalogAddedToJellyfin": {
+        "description": "Apple Music item button / message (Allstarr): Added to Jellyfin"
+    },
+    "catalogAddToJellyfinAndPhone": "Add to Jellyfin and download to this phone",
+    "@catalogAddToJellyfinAndPhone": {
+        "description": "Apple Music item button / message (Allstarr): Add to Jellyfin and download to this phone"
+    },
+    "catalogAddedToJellyfinMessage": "Added: the server is downloading it to your Jellyfin library",
+    "@catalogAddedToJellyfinMessage": {
+        "description": "Apple Music item button / message (Allstarr): Added: the server is downloading it to your Jellyfin library"
     }
 }

@@ -3705,5 +3705,9 @@
     },
     "loginFlowLocalNetworkServersNoResults": "Aucun serveur détecté - vous devrez peut-être entrer l'adresse du serveur manuellement.",
     "searchSourceJellyfin": "Jellyfin",
-    "searchSourceAppleMusic": "Apple Music"
+    "searchSourceAppleMusic": "Apple Music",
+    "catalogAddToJellyfin": "Ajouter à Jellyfin",
+    "catalogAddedToJellyfin": "Ajouté à Jellyfin",
+    "catalogAddToJellyfinAndPhone": "Ajouter à Jellyfin et télécharger sur le téléphone",
+    "catalogAddedToJellyfinMessage": "Ajouté : le serveur le télécharge dans ta bibliothèque Jellyfin"
 }

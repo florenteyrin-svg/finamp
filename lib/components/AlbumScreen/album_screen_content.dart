@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:finamp/components/AlbumScreen/album_screen_content_flexible_space_bar.dart';
+import 'package:finamp/components/AlbumScreen/catalog_add_buttons.dart';
 import 'package:finamp/components/AlbumScreen/download_button.dart';
 import 'package:finamp/components/AlbumScreen/playlist_edit_button.dart';
 import 'package:finamp/components/AlbumScreen/track_list_tile.dart';
@@ -21,6 +22,7 @@ import 'package:finamp/services/album_screen_provider.dart';
 import 'package:finamp/services/finamp_settings_helper.dart';
 import 'package:finamp/services/permission_providers.dart';
 import 'package:finamp/services/queue_service.dart';
+import 'package:finamp/services/search_source_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
@@ -128,14 +130,18 @@ class _AlbumScreenContentState extends ConsumerState<AlbumScreenContent> {
                   !ref.watch(finampSettingsProvider.isOffline) &&
                   ref.watch(canEditPlaylistProvider(widget.parent)))
                 PlaylistEditButton(playlist: widget.parent),
-              FavoriteButton(item: widget.parent, visualDensity: VisualDensity.standard),
-              if (maxActions >= 8 && !isLoading)
-                DownloadButton(
-                  item: downloadStub,
-                  children: displayChildren,
-                  downloadDisabled: disableDownloads,
-                  customTooltip: disableDownloads ? context.l10n.downloadButtonDisabledGenreFilterTooltip : null,
-                ),
+              if (isCatalogItem(widget.parent))
+                CatalogAddButtons(item: widget.parent, downloadStub: downloadStub, children: displayChildren)
+              else ...[
+                FavoriteButton(item: widget.parent, visualDensity: VisualDensity.standard),
+                if (maxActions >= 8 && !isLoading)
+                  DownloadButton(
+                    item: downloadStub,
+                    children: displayChildren,
+                    downloadDisabled: disableDownloads,
+                    customTooltip: disableDownloads ? context.l10n.downloadButtonDisabledGenreFilterTooltip : null,
+                  ),
+              ],
               IconButton(
                 icon: const Icon(Icons.more_vert),
                 onPressed: () {
