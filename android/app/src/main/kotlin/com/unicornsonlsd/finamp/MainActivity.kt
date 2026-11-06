@@ -16,6 +16,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.mediarouter.app.SystemOutputSwitcherDialogController
 import androidx.mediarouter.media.MediaRouter
 import com.ryanheise.audioservice.AudioServiceActivity
+import com.unicornsonlsd.finamp.widgets.NowPlayingState
+import com.unicornsonlsd.finamp.widgets.NowPlayingWidgets
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +44,8 @@ class MainActivity : AudioServiceActivity() {
 
         private const val SET_NATIVE_THEME_CHANNEL = "com.unicornsonlsd.finamp/set_native_theme"
         private const val SET_NATIVE_THEME_CHANNEL_LOG_TAG = "setNativeThemeChannel"
+
+        private const val HOME_SCREEN_WIDGETS_CHANNEL = "com.unicornsonlsd.finamp/home_screen_widgets"
     }
 
     private lateinit var mediaRouter: MediaRouter
@@ -69,6 +73,22 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Home screen widgets: the player sends the current track here (lib/services/home_screen_widgets.dart).
+        // Uses the application context, as the engine outlives this activity while music plays in the background.
+        val appContext = applicationContext
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            HOME_SCREEN_WIDGETS_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "update" -> {
+                    val state = NowPlayingState.fromMap(call.arguments as? Map<*, *>)
+                    NowPlayingWidgets.updateInBackground(appContext, state)
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             CLIENT_CERT_CHANNEL,

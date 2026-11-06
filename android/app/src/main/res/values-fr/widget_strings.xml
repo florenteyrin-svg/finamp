@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_cover_name">Pochette</string>
+    <string name="widget_cover_description">La pochette avec le titre et un bouton lecture</string>
+    <string name="widget_bar_name">Barre</string>
+    <string name="widget_bar_description">Barre compacte avec lecture et suivant</string>
+    <string name="widget_medium_name">À l\'écoute</string>
+    <string name="widget_medium_description">Pochette, titre, artiste, album et commandes</string>
+    <string name="widget_large_name">Grand</string>
+    <string name="widget_large_description">Grande pochette, commandes et le titre suivant</string>
+    <string name="widget_controls_name">Commandes</string>
+    <string name="widget_controls_description">Précédent, lecture et suivant uniquement</string>
+    <string name="widget_nothing_playing">Aucune lecture</string>
+    <string name="widget_tap_to_open">Ouvrir Finamp</string>
+    <string name="widget_up_next">À suivre</string>
+    <string name="widget_play">Lecture</string>
+    <string name="widget_pause">Pause</string>
+    <string name="widget_previous">Précédent</string>
+    <string name="widget_next">Suivant</string>
+</resources>

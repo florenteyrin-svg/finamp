@@ -4,6 +4,7 @@ import 'package:finamp/components/HomeScreen/finamp_music_screen_header.dart';
 import 'package:finamp/components/HomeScreen/home_screen_content.dart';
 import 'package:finamp/components/MusicScreen/artist_type_selection_row.dart';
 import 'package:finamp/components/MusicScreen/music_screen_tab_view.dart';
+import 'package:finamp/components/MusicScreen/search_source_selector.dart';
 import 'package:finamp/components/MusicScreen/sort_and_filter_row.dart';
 import 'package:finamp/components/global_snackbar.dart';
 import 'package:finamp/components/now_playing_bar.dart';
@@ -318,6 +319,7 @@ class _MusicScreenState extends ConsumerState<MusicScreen> with TickerProviderSt
 
                 return Column(
                   children: [
+                    if (isSearching) const SearchSourceSelector(),
                     if (displayable is FinampSortable)
                       SortAndFilterRow(
                         contentType: contentTabType,

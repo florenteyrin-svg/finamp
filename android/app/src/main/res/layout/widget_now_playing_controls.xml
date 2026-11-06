@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Commandes" model: buttons only (the hidden title keeps the rendering code shared). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_outline"
+    android:clipToOutline="true"
+
+    <ImageView
+        android:id="@+id/widget_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_shape" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp">
+            <ImageButton
+                android:id="@+id/widget_skip_previous"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/widget_previous"
+                android:padding="9dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_ic_previous" />
+            <ImageButton
+                android:id="@+id/widget_play"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/widget_play_button"
+                android:contentDescription="@string/widget_play"
+                android:padding="11dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_ic_play" />
+            <ImageButton
+                android:id="@+id/widget_skip_next"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/widget_next"
+                android:padding="9dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_ic_next" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_title"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+</FrameLayout>

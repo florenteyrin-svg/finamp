@@ -61,7 +61,16 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            resValue "string", "app_name", "Finamp"
+            if (System.getenv('FINAMP_PLUS_BUILD') == 'true') {
+                // personal build of this fork: installs next to the official Finamp app
+                if (keystoreProperties['storeFile'] == null) {
+                    signingConfig signingConfigs.debug
+                }
+                applicationIdSuffix '.plus'
+                resValue "string", "app_name", "Finamp+"
+            } else {
+                resValue "string", "app_name", "Finamp"
+            }
             // shrinkResources false
             // minifyEnabled false
         }

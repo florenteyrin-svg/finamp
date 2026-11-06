@@ -17,6 +17,7 @@ import 'finamp_settings_helper.dart';
 import 'item_by_id_provider.dart';
 import 'jellyfin_api_helper.dart';
 import 'music_providers.dart';
+import 'search_source_provider.dart';
 
 part 'music_screen_provider.g.dart';
 
@@ -97,6 +98,14 @@ class PagedContent extends _$PagedContent {
         musicRequest = request;
     }
 
+    // While searching, only keep the results of the selected source (Jellyfin library or Apple Music catalogue).
+    // Filtering happens here rather than in the page providers so that switching source needs no new request.
+    final searchTerm = musicRequest.sortConfig.filters
+        .firstWhereOrNull((x) => x.type == ItemFilterType.searchTerm)
+        ?.extraString
+        .trim();
+    final SearchSource? searchSource = (searchTerm?.isNotEmpty ?? false) ? ref.watch(searchSourceProvider) : null;
+
     int offset = 0;
     for (int i = 0; i < _pageSizes.length; i++) {
       final provider = loadHomeSectionItemsProvider(request: musicRequest, startIndex: offset, limit: _pageSizes[i]);
@@ -106,8 +115,10 @@ class PagedContent extends _$PagedContent {
 
       if (page is AsyncData) {
         if (page.value != null) {
-          pages.add(page.value!.map((x) => FinampPlayableDto.fromItem(x)).toList());
+          final items = searchSource == null ? page.value! : page.value!.where(searchSource.accepts);
+          pages.add(items.map((x) => FinampPlayableDto.fromItem(x)).toList());
           keys.add(offset);
+          // Decide on the unfiltered size, a page with hidden results is not the last one.
           if (page.value!.length < _pageSizes[i]) {
             hasNextPage = false;
           }

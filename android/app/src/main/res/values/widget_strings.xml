@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_cover_name">Cover</string>
+    <string name="widget_cover_description">Album art with the track and a play button</string>
+    <string name="widget_bar_name">Bar</string>
+    <string name="widget_bar_description">Compact bar with play and next</string>
+    <string name="widget_medium_name">Now playing</string>
+    <string name="widget_medium_description">Art, title, artist, album and controls</string>
+    <string name="widget_large_name">Large</string>
+    <string name="widget_large_description">Big art, controls and the next track</string>
+    <string name="widget_controls_name">Controls</string>
+    <string name="widget_controls_description">Previous, play and next only</string>
+    <string name="widget_nothing_playing">Not playing</string>
+    <string name="widget_tap_to_open">Open Finamp</string>
+    <string name="widget_up_next">Up next</string>
+    <string name="widget_play">Play</string>
+    <string name="widget_pause">Pause</string>
+    <string name="widget_previous">Previous</string>
+    <string name="widget_next">Next</string>
+</resources>

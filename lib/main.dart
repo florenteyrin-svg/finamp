@@ -46,6 +46,7 @@ import 'package:finamp/services/downloads_service_backend.dart';
 import 'package:finamp/services/finamp_logs_helper.dart';
 import 'package:finamp/services/finamp_settings_helper.dart';
 import 'package:finamp/services/finamp_user_helper.dart';
+import 'package:finamp/services/home_screen_widgets.dart';
 import 'package:finamp/services/ios_helpers.dart';
 import 'package:finamp/services/item_by_id_provider.dart';
 import 'package:finamp/services/item_helper.dart';
@@ -487,6 +488,11 @@ Future<void> _setupPlaybackServices() async {
   var queueService = QueueService();
   GetIt.instance.registerSingleton(queueService);
   audioHandler.onQueueServiceAvailable(); // breaking circular dependency
+  HomeScreenWidgets.start(
+    mediaItem: audioHandler.mediaItem,
+    playbackState: audioHandler.playbackState,
+    queue: queueService.getQueueStream(),
+  );
   GetIt.instance.registerSingleton(PlaybackHistoryService());
   GetIt.instance.registerSingleton(AudioServiceHelper());
 

@@ -82,6 +82,67 @@
       </intent-filter>
     </receiver>
 
+    <!-- Home screen widgets (kotlin/.../widgets) -->
+    <receiver
+        android:name=".widgets.CoverWidget"
+        android:exported="false"
+        android:label="@string/widget_cover_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_cover_info" />
+    </receiver>
+
+    <receiver
+        android:name=".widgets.BarWidget"
+        android:exported="false"
+        android:label="@string/widget_bar_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_bar_info" />
+    </receiver>
+
+    <receiver
+        android:name=".widgets.MediumWidget"
+        android:exported="false"
+        android:label="@string/widget_medium_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_medium_info" />
+    </receiver>
+
+    <receiver
+        android:name=".widgets.LargeWidget"
+        android:exported="false"
+        android:label="@string/widget_large_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_large_info" />
+    </receiver>
+
+    <receiver
+        android:name=".widgets.ControlsWidget"
+        android:exported="false"
+        android:label="@string/widget_controls_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/widget_controls_info" />
+    </receiver>
+
     <receiver
         android:name="androidx.mediarouter.media.MediaTransferReceiver"
         android:exported="true">

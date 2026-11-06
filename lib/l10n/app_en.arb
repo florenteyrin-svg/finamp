@@ -3836,5 +3836,13 @@
         "example": "Rick Astley - Never Gonna Give You Up"
       }
     }
-  }
+  },
+    "searchSourceJellyfin": "Jellyfin",
+    "@searchSourceJellyfin": {
+        "description": "Search source switch: only search the Jellyfin library"
+    },
+    "searchSourceAppleMusic": "Apple Music",
+    "@searchSourceAppleMusic": {
+        "description": "Search source switch: only search the Apple Music catalogue (served through Allstarr)"
+    }
 }
