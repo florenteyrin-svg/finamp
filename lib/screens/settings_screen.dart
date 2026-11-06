@@ -6,6 +6,7 @@ import 'package:finamp/menus/client_certificate_authentication_menu.dart';
 import 'package:finamp/menus/quick_connect_authorization_menu.dart';
 import 'package:finamp/menus/server_sharing_menu.dart';
 import 'package:finamp/screens/accessibility_settings_screen.dart';
+import 'package:finamp/screens/alacarte_settings_screen.dart';
 import 'package:finamp/screens/audio_service_settings_screen.dart';
 import 'package:finamp/screens/downloads_settings_screen.dart';
 import 'package:finamp/screens/home_screen_settings_screen.dart';
@@ -163,6 +164,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             leading: const Icon(Icons.wifi),
             title: Text(AppLocalizations.of(context)!.networkSettingsTitle),
             onTap: () => Navigator.of(context).pushNamed(NetworkSettingsScreen.routeName),
+          ),
+          ListTile(
+            leading: const Icon(TablerIcons.brand_apple),
+            title: Text(AppLocalizations.of(context)!.alacarteSettingsTitle),
+            subtitle: Text(AppLocalizations.of(context)!.alacarteSettingsSubtitle),
+            onTap: () =>
+                Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AlacarteSettingsScreen())),
           ),
           ListTile(
             leading: const Icon(Icons.music_note),

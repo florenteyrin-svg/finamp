@@ -1,9 +1,11 @@
 import 'package:finamp/components/AlbumScreen/download_button.dart';
 import 'package:finamp/components/AlbumScreen/download_dialog.dart';
+import 'package:finamp/components/AlbumScreen/server_progress_ring.dart';
 import 'package:finamp/components/global_snackbar.dart';
 import 'package:finamp/l10n/app_localizations.dart';
 import 'package:finamp/models/finamp_models.dart';
 import 'package:finamp/models/jellyfin_models.dart';
+import 'package:finamp/services/alacarte_service.dart';
 import 'package:finamp/services/downloads_service.dart';
 import 'package:finamp/services/favorite_provider.dart';
 import 'package:finamp/services/finamp_settings_helper.dart';
@@ -31,11 +33,35 @@ class CatalogAddButtons extends ConsumerWidget {
     final status = ref.watch(GetIt.instance<DownloadsService>().statusProvider((downloadStub, children?.length)));
     final onPhone = status.isRequired;
 
-    final addButton = IconButton(
-      icon: Icon(added ? TablerIcons.circle_check : TablerIcons.library_plus),
-      tooltip: added ? l10n.catalogAddedToJellyfin : l10n.catalogAddToJellyfin,
-      onPressed: isOffline || added ? null : () => _addToJellyfin(ref, showMessage: true),
-    );
+    // Real progress of the download to the server, read from Alacarte (when connected in the settings).
+    final appleAlbumId = AlacarteService.appleAlbumId(item);
+    final serverProgress = appleAlbumId == null
+        ? null
+        : ref.watch(albumServerProgressProvider((appleAlbumId, children?.length ?? item.childCount ?? 0))).value;
+
+    final Widget addButton;
+    if (serverProgress != null && serverProgress.active) {
+      addButton = ServerProgressRing(
+        percent: serverProgress.percent,
+        failed: serverProgress.failed,
+        tooltip: l10n.catalogServerDownloadProgress(serverProgress.percent),
+      );
+    } else {
+      final onServer = added || (serverProgress?.finished ?? false);
+      addButton = IconButton(
+        icon: Icon(
+          serverProgress?.failed ?? false
+              ? TablerIcons.alert_circle
+              : (onServer ? TablerIcons.circle_check : TablerIcons.library_plus),
+        ),
+        tooltip: serverProgress?.failed ?? false
+            ? l10n.catalogServerDownloadFailed
+            : (onServer ? l10n.catalogAddedToJellyfin : l10n.catalogAddToJellyfin),
+        onPressed: isOffline || (onServer && !(serverProgress?.failed ?? false))
+            ? null
+            : () => _addToJellyfin(ref, showMessage: true),
+      );
+    }
 
     // Once on the phone, show the usual buttons (sync, delete from the phone...).
     if (onPhone) {

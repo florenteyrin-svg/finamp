@@ -3709,5 +3709,15 @@
     "catalogAddToJellyfin": "Ajouter à Jellyfin",
     "catalogAddedToJellyfin": "Ajouté à Jellyfin",
     "catalogAddToJellyfinAndPhone": "Ajouter à Jellyfin et télécharger sur le téléphone",
-    "catalogAddedToJellyfinMessage": "Ajouté : le serveur le télécharge dans ta bibliothèque Jellyfin"
+    "catalogAddedToJellyfinMessage": "Ajouté : le serveur le télécharge dans ta bibliothèque Jellyfin",
+    "catalogServerDownloadProgress": "Téléchargement sur le serveur : {percent} %",
+    "catalogServerDownloadFailed": "Des titres n'ont pas pu être téléchargés sur le serveur, appuie pour réessayer",
+    "alacarteSettingsTitle": "Apple Music (Alacarte)",
+    "alacarteSettingsSubtitle": "Progression des téléchargements Apple Music",
+    "alacarteSettingsDescription": "Connecte ton serveur Alacarte pour voir la vraie progression des albums Apple Music téléchargés sur ton serveur : un rond avec le pourcentage sur la page de l'album. Utilise l'adresse web et le compte d'Alacarte.",
+    "alacarteUrl": "Adresse d'Alacarte",
+    "alacarteSaveAndTest": "Enregistrer et tester",
+    "alacarteConnected": "Connecté à Alacarte",
+    "alacarteDisconnected": "Alacarte déconnecté",
+    "alacarteConnectionFailed": "Connexion impossible : {error}"
 }

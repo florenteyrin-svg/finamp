@@ -3860,5 +3860,25 @@
     "catalogAddedToJellyfinMessage": "Added: the server is downloading it to your Jellyfin library",
     "@catalogAddedToJellyfinMessage": {
         "description": "Apple Music item button / message (Allstarr): Added: the server is downloading it to your Jellyfin library"
-    }
+    },
+    "catalogServerDownloadProgress": "Downloading to the server: {percent} %",
+    "@catalogServerDownloadProgress": {"description": "Alacarte (Apple Music downloader) integration: Downloading to the server: {percent} %", "placeholders": {"percent": {"type": "int"}}},
+    "catalogServerDownloadFailed": "Some tracks could not be downloaded to the server, tap to try again",
+    "@catalogServerDownloadFailed": {"description": "Alacarte (Apple Music downloader) integration: Some tracks could not be downloaded to the server, tap to try again"},
+    "alacarteSettingsTitle": "Apple Music (Alacarte)",
+    "@alacarteSettingsTitle": {"description": "Alacarte (Apple Music downloader) integration: Apple Music (Alacarte)"},
+    "alacarteSettingsSubtitle": "Download progress of Apple Music albums",
+    "@alacarteSettingsSubtitle": {"description": "Alacarte (Apple Music downloader) integration: Download progress of Apple Music albums"},
+    "alacarteSettingsDescription": "Connect your Alacarte server to see the real progress of Apple Music albums being downloaded to your server, as a ring with the percentage on the album screen. Use the Alacarte web address and account.",
+    "@alacarteSettingsDescription": {"description": "Alacarte (Apple Music downloader) integration: Connect your Alacarte server to see the real progress of Apple Music albums being downloaded to your server, as a ring with the percentage on the album screen. Use the Alacarte web address and account."},
+    "alacarteUrl": "Alacarte address",
+    "@alacarteUrl": {"description": "Alacarte (Apple Music downloader) integration: Alacarte address"},
+    "alacarteSaveAndTest": "Save and test",
+    "@alacarteSaveAndTest": {"description": "Alacarte (Apple Music downloader) integration: Save and test"},
+    "alacarteConnected": "Connected to Alacarte",
+    "@alacarteConnected": {"description": "Alacarte (Apple Music downloader) integration: Connected to Alacarte"},
+    "alacarteDisconnected": "Alacarte disconnected",
+    "@alacarteDisconnected": {"description": "Alacarte (Apple Music downloader) integration: Alacarte disconnected"},
+    "alacarteConnectionFailed": "Could not connect: {error}",
+    "@alacarteConnectionFailed": {"description": "Alacarte (Apple Music downloader) integration: Could not connect: {error}", "placeholders": {"error": {"type": "String"}}}
 }
