@@ -18,61 +18,74 @@ class AlacarteService {
   static final instance = AlacarteService._();
 
   static final _logger = Logger("Alacarte");
-  static const _urlKey = "alacarte.url";
+  static const _urlKey = "alacarte.url"; // address at home
+  static const _outsideUrlKey = "alacarte.outsideUrl"; // address from outside, through the reverse proxy
   static const _userKey = "alacarte.username";
   static const _passwordKey = "alacarte.password";
 
   final _client = http.Client();
   String? _cookie;
 
+  /// The address that answered last; tried first next time.
+  String? _activeBase;
+
   Future<AlacarteConfig?> readConfig() async {
     final prefs = await SharedPreferences.getInstance();
-    final url = prefs.getString(_urlKey);
-    final user = prefs.getString(_userKey);
-    final password = prefs.getString(_passwordKey);
-    if (url == null || url.isEmpty || user == null || user.isEmpty || password == null) return null;
-    return AlacarteConfig(url: url, username: user, password: password);
+    final config = AlacarteConfig(
+      url: prefs.getString(_urlKey) ?? "",
+      outsideUrl: prefs.getString(_outsideUrlKey) ?? "",
+      username: prefs.getString(_userKey) ?? "",
+      password: prefs.getString(_passwordKey) ?? "",
+    );
+    return config.isComplete ? config : null;
   }
 
   Future<void> saveConfig(AlacarteConfig? config) async {
     final prefs = await SharedPreferences.getInstance();
     if (config == null) {
-      await prefs.remove(_urlKey);
-      await prefs.remove(_userKey);
-      await prefs.remove(_passwordKey);
+      for (final key in [_urlKey, _outsideUrlKey, _userKey, _passwordKey]) {
+        await prefs.remove(key);
+      }
     } else {
-      await prefs.setString(_urlKey, config.normalizedUrl);
+      await prefs.setString(_urlKey, config.url.trim());
+      await prefs.setString(_outsideUrlKey, config.outsideUrl.trim());
       await prefs.setString(_userKey, config.username);
       await prefs.setString(_passwordKey, config.password);
     }
     _cookie = null;
+    _activeBase = null;
   }
 
-  /// Signs in and returns null, or the error to show.
-  Future<String?> testConnection(AlacarteConfig config) async {
-    try {
-      _cookie = null;
-      await _login(config);
-      await _get(config, "/api/queue");
-      return null;
-    } catch (e) {
-      return e.toString();
+  /// Signs in on every configured address. Returns, per address, null when it works or the error.
+  Future<Map<String, String?>> testConnection(AlacarteConfig config) async {
+    final results = <String, String?>{};
+    for (final base in config.addresses) {
+      try {
+        _cookie = null;
+        await _login(config, base);
+        await _getFrom(config, base, "/api/queue");
+        results[base] = null;
+      } catch (e) {
+        results[base] = e.toString();
+      }
     }
+    _cookie = null;
+    _activeBase = null;
+    return results;
   }
 
-  Future<void> _login(AlacarteConfig config) async {
-    final base = Uri.parse(config.normalizedUrl);
+  Future<void> _login(AlacarteConfig config, String base) async {
     final response = await _client
         .post(
-          base.resolve("/api/auth/login"),
+          Uri.parse("$base/api/auth/login"),
           headers: {
             "Content-Type": "application/json",
             // Alacarte refuses state-changing requests from another origin.
-            "Origin": base.origin,
+            "Origin": Uri.parse(base).origin,
           },
           body: jsonEncode({"username": config.username, "password": config.password}),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 6));
     if (response.statusCode != 200) {
       throw AlacarteException(_errorMessage(response));
     }
@@ -86,14 +99,38 @@ class AlacarteService {
         .join("; ");
   }
 
-  Future<Map<String, dynamic>> _get(AlacarteConfig config, String path, {bool retried = false}) async {
-    if (_cookie == null) await _login(config);
+  /// GET on the address that answered last, falling back to the other one (home / outside).
+  Future<Map<String, dynamic>> _get(AlacarteConfig config, String path) async {
+    final addresses = config.addresses;
+    final ordered = [
+      if (_activeBase != null && addresses.contains(_activeBase)) _activeBase!,
+      ...addresses.where((a) => a != _activeBase),
+    ];
+    Object? lastError;
+    for (final base in ordered) {
+      try {
+        if (base != _activeBase) {
+          _cookie = null;
+          _activeBase = base;
+        }
+        return await _getFrom(config, base, path);
+      } catch (e) {
+        lastError = e;
+        _activeBase = null;
+      }
+    }
+    throw lastError ?? AlacarteException("no Alacarte address configured");
+  }
+
+  Future<Map<String, dynamic>> _getFrom(AlacarteConfig config, String base, String path, {bool retried = false}) async {
+    if (_cookie == null) await _login(config, base);
     final response = await _client
-        .get(Uri.parse(config.normalizedUrl).resolve(path), headers: {"Cookie": _cookie!})
-        .timeout(const Duration(seconds: 15));
+        .get(Uri.parse("$base$path"), headers: {"Cookie": _cookie!})
+        // Short, so an unreachable home address quickly falls back to the outside one.
+        .timeout(const Duration(seconds: 4));
     if (response.statusCode == 401 && !retried) {
       _cookie = null;
-      return _get(config, path, retried: true);
+      return _getFrom(config, base, path, retried: true);
     }
     if (response.statusCode != 200) throw AlacarteException(_errorMessage(response));
     return jsonDecode(response.body) as Map<String, dynamic>;
@@ -137,18 +174,29 @@ class AlacarteException implements Exception {
 }
 
 class AlacarteConfig {
-  AlacarteConfig({required this.url, required this.username, required this.password});
+  AlacarteConfig({required this.url, this.outsideUrl = "", required this.username, required this.password});
+
+  /// Address at home, e.g. http://192.168.1.10:7373 (optional).
   final String url;
+
+  /// Address from outside, e.g. https://my-domain/alacarte behind the same reverse proxy as Jellyfin (optional).
+  final String outsideUrl;
   final String username;
   final String password;
 
-  String get normalizedUrl {
-    var value = url.trim();
-    if (!value.startsWith("http://") && !value.startsWith("https://")) value = "http://$value";
-    while (value.endsWith("/")) {
-      value = value.substring(0, value.length - 1);
+  bool get isComplete => addresses.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
+
+  /// Configured addresses, home first.
+  List<String> get addresses => [url, outsideUrl].map(normalize).nonNulls.toSet().toList();
+
+  static String? normalize(String value) {
+    var out = value.trim();
+    if (out.isEmpty) return null;
+    if (!out.startsWith("http://") && !out.startsWith("https://")) out = "http://$out";
+    while (out.endsWith("/")) {
+      out = out.substring(0, out.length - 1);
     }
-    return value;
+    return out;
   }
 }
 

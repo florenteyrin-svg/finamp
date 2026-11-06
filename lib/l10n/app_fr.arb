@@ -3715,9 +3715,14 @@
     "alacarteSettingsTitle": "Apple Music (Alacarte)",
     "alacarteSettingsSubtitle": "Progression des téléchargements Apple Music",
     "alacarteSettingsDescription": "Connecte ton serveur Alacarte pour voir la vraie progression des albums Apple Music téléchargés sur ton serveur : un rond avec le pourcentage sur la page de l'album. Utilise l'adresse web et le compte d'Alacarte.",
-    "alacarteUrl": "Adresse d'Alacarte",
+    "alacarteUrl": "Adresse d'Alacarte à la maison",
     "alacarteSaveAndTest": "Enregistrer et tester",
     "alacarteConnected": "Connecté à Alacarte",
     "alacarteDisconnected": "Alacarte déconnecté",
-    "alacarteConnectionFailed": "Connexion impossible : {error}"
+    "alacarteConnectionFailed": "Connexion impossible : {error}",
+    "alacarteUrlHelper": "À la maison (facultatif)",
+    "alacarteOutsideUrl": "Adresse depuis l'extérieur",
+    "alacarteOutsideUrlHelper": "Ton adresse Jellyfin suivie de /alacarte, sur le même nginx. Finamp utilise l'adresse de la maison quand elle répond, sinon celle-ci.",
+    "alacarteUseServerAddress": "Utiliser {address}",
+    "alacartePartlyConnected": "Enregistré : Finamp utilisera l'adresse qui répond."
 }

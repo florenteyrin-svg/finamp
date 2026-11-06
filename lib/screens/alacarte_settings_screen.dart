@@ -1,7 +1,9 @@
 import 'package:finamp/components/finamp_app_bar_back_button.dart';
 import 'package:finamp/l10n/app_localizations.dart';
 import 'package:finamp/services/alacarte_service.dart';
+import 'package:finamp/services/finamp_user_helper.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
 /// Connection to the Alacarte server, used to show the real download progress of Apple Music albums.
 class AlacarteSettingsScreen extends StatefulWidget {
@@ -13,6 +15,7 @@ class AlacarteSettingsScreen extends StatefulWidget {
 
 class _AlacarteSettingsScreenState extends State<AlacarteSettingsScreen> {
   final _url = TextEditingController();
+  final _outsideUrl = TextEditingController();
   final _user = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
@@ -26,6 +29,7 @@ class _AlacarteSettingsScreenState extends State<AlacarteSettingsScreen> {
       if (config == null || !mounted) return;
       setState(() {
         _url.text = config.url;
+        _outsideUrl.text = config.outsideUrl;
         _user.text = config.username;
         _password.text = config.password;
       });
@@ -35,14 +39,28 @@ class _AlacarteSettingsScreenState extends State<AlacarteSettingsScreen> {
   @override
   void dispose() {
     _url.dispose();
+    _outsideUrl.dispose();
     _user.dispose();
     _password.dispose();
     super.dispose();
   }
 
+  /// The Jellyfin server's public address with /alacarte, the path to add on the same reverse proxy.
+  String? get _suggestedOutsideUrl {
+    final address = GetIt.instance<FinampUserHelper>().currentUser?.publicAddress;
+    final base = address == null ? null : AlacarteConfig.normalize(address);
+    return base == null ? null : "$base/alacarte";
+  }
+
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_url.text.trim().isEmpty) {
+    final config = AlacarteConfig(
+      url: _url.text,
+      outsideUrl: _outsideUrl.text,
+      username: _user.text.trim(),
+      password: _password.text,
+    );
+    if (config.addresses.isEmpty) {
       await AlacarteService.instance.saveConfig(null);
       setState(() {
         _ok = false;
@@ -50,15 +68,20 @@ class _AlacarteSettingsScreenState extends State<AlacarteSettingsScreen> {
       });
       return;
     }
-    final config = AlacarteConfig(url: _url.text, username: _user.text.trim(), password: _password.text);
     setState(() => _busy = true);
-    final error = await AlacarteService.instance.testConnection(config);
-    if (error == null) await AlacarteService.instance.saveConfig(config);
+    final results = await AlacarteService.instance.testConnection(config);
+    final anyOk = results.values.any((error) => error == null);
+    if (anyOk) await AlacarteService.instance.saveConfig(config);
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _ok = error == null;
-      _result = error == null ? l10n.alacarteConnected : l10n.alacarteConnectionFailed(error);
+      _ok = anyOk;
+      _result = results.entries
+          .map((e) => e.value == null ? "✓ ${e.key}" : "✗ ${e.key}\n   ${l10n.alacarteConnectionFailed(e.value!)}")
+          .join("\n");
+      if (anyOk && results.values.any((error) => error != null)) {
+        _result = "${_result!}\n\n${l10n.alacartePartlyConnected}";
+      }
     });
   }
 
@@ -76,8 +99,32 @@ class _AlacarteSettingsScreenState extends State<AlacarteSettingsScreen> {
             controller: _url,
             keyboardType: TextInputType.url,
             autocorrect: false,
-            decoration: InputDecoration(labelText: l10n.alacarteUrl, hintText: "http://192.168.1.10:3000"),
+            decoration: InputDecoration(
+              labelText: l10n.alacarteUrl,
+              hintText: "http://192.168.1.10:7373",
+              helperText: l10n.alacarteUrlHelper,
+            ),
           ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _outsideUrl,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: l10n.alacarteOutsideUrl,
+              hintText: _suggestedOutsideUrl ?? "https://example.com/alacarte",
+              helperText: l10n.alacarteOutsideUrlHelper,
+              helperMaxLines: 4,
+            ),
+          ),
+          if (_suggestedOutsideUrl != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => setState(() => _outsideUrl.text = _suggestedOutsideUrl!),
+                child: Text(l10n.alacarteUseServerAddress(_suggestedOutsideUrl!)),
+              ),
+            ),
           const SizedBox(height: 12),
           TextField(
             controller: _user,

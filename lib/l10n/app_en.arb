@@ -3871,7 +3871,7 @@
     "@alacarteSettingsSubtitle": {"description": "Alacarte (Apple Music downloader) integration: Download progress of Apple Music albums"},
     "alacarteSettingsDescription": "Connect your Alacarte server to see the real progress of Apple Music albums being downloaded to your server, as a ring with the percentage on the album screen. Use the Alacarte web address and account.",
     "@alacarteSettingsDescription": {"description": "Alacarte (Apple Music downloader) integration: Connect your Alacarte server to see the real progress of Apple Music albums being downloaded to your server, as a ring with the percentage on the album screen. Use the Alacarte web address and account."},
-    "alacarteUrl": "Alacarte address",
+    "alacarteUrl": "Alacarte address at home",
     "@alacarteUrl": {"description": "Alacarte (Apple Music downloader) integration: Alacarte address"},
     "alacarteSaveAndTest": "Save and test",
     "@alacarteSaveAndTest": {"description": "Alacarte (Apple Music downloader) integration: Save and test"},
@@ -3880,5 +3880,15 @@
     "alacarteDisconnected": "Alacarte disconnected",
     "@alacarteDisconnected": {"description": "Alacarte (Apple Music downloader) integration: Alacarte disconnected"},
     "alacarteConnectionFailed": "Could not connect: {error}",
-    "@alacarteConnectionFailed": {"description": "Alacarte (Apple Music downloader) integration: Could not connect: {error}", "placeholders": {"error": {"type": "String"}}}
+    "@alacarteConnectionFailed": {"description": "Alacarte (Apple Music downloader) integration: Could not connect: {error}", "placeholders": {"error": {"type": "String"}}},
+    "alacarteUrlHelper": "At home (optional)",
+    "@alacarteUrlHelper": {"description": "Alacarte settings: At home (optional)"},
+    "alacarteOutsideUrl": "Address from outside",
+    "@alacarteOutsideUrl": {"description": "Alacarte settings: Address from outside"},
+    "alacarteOutsideUrlHelper": "Your Jellyfin address with /alacarte, on the same reverse proxy (nginx). Finamp uses the home address when it answers, this one otherwise.",
+    "@alacarteOutsideUrlHelper": {"description": "Alacarte settings: Your Jellyfin address with /alacarte, on the same reverse proxy (nginx). Finamp uses the home address when it answers, this one otherwise."},
+    "alacarteUseServerAddress": "Use {address}",
+    "@alacarteUseServerAddress": {"description": "Alacarte settings: Use {address}", "placeholders": {"address": {"type": "String"}}},
+    "alacartePartlyConnected": "Saved: Finamp will use the address that answers.",
+    "@alacartePartlyConnected": {"description": "Alacarte settings: Saved: Finamp will use the address that answers."}
 }
