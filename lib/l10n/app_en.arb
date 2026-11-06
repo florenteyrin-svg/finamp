@@ -3885,7 +3885,7 @@
     "@alacarteUrlHelper": {"description": "Alacarte settings: At home (optional)"},
     "alacarteOutsideUrl": "Address from outside",
     "@alacarteOutsideUrl": {"description": "Alacarte settings: Address from outside"},
-    "alacarteOutsideUrlHelper": "Your Jellyfin address with /alacarte, on the same reverse proxy (nginx). Finamp uses the home address when it answers, this one otherwise.",
+    "alacarteOutsideUrlHelper": "Leave empty to use your server address with /alacarte (a path on the nginx that already serves Allstarr). Finamp uses whichever address answers.",
     "@alacarteOutsideUrlHelper": {"description": "Alacarte settings: Your Jellyfin address with /alacarte, on the same reverse proxy (nginx). Finamp uses the home address when it answers, this one otherwise."},
     "alacarteUseServerAddress": "Use {address}",
     "@alacarteUseServerAddress": {"description": "Alacarte settings: Use {address}", "placeholders": {"address": {"type": "String"}}},

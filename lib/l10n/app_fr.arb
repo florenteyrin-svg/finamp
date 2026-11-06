@@ -3722,7 +3722,7 @@
     "alacarteConnectionFailed": "Connexion impossible : {error}",
     "alacarteUrlHelper": "À la maison (facultatif)",
     "alacarteOutsideUrl": "Adresse depuis l'extérieur",
-    "alacarteOutsideUrlHelper": "Ton adresse Jellyfin suivie de /alacarte, sur le même nginx. Finamp utilise l'adresse de la maison quand elle répond, sinon celle-ci.",
+    "alacarteOutsideUrlHelper": "Laisse vide pour utiliser l'adresse de ton serveur suivie de /alacarte (un chemin sur le nginx qui sert déjà Allstarr). Finamp utilise l'adresse qui répond.",
     "alacarteUseServerAddress": "Utiliser {address}",
     "alacartePartlyConnected": "Enregistré : Finamp utilisera l'adresse qui répond."
 }

@@ -60,7 +60,7 @@ class _AlacarteSettingsScreenState extends State<AlacarteSettingsScreen> {
       username: _user.text.trim(),
       password: _password.text,
     );
-    if (config.addresses.isEmpty) {
+    if (config.username.isEmpty && config.password.isEmpty && config.addresses.isEmpty) {
       await AlacarteService.instance.saveConfig(null);
       setState(() {
         _ok = false;

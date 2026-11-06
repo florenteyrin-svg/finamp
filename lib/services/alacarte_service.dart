@@ -58,10 +58,19 @@ class AlacarteService {
     _activeBase = null;
   }
 
+  /// The configured addresses, plus the server's own address with /alacarte when no outside address is set:
+  /// the path to add on the reverse proxy (nginx) that already serves Allstarr, so no other domain is needed.
+  static List<String> withServerAddress(AlacarteConfig config) {
+    if (config.outsideUrl.trim().isNotEmpty) return config.addresses;
+    final server = GetIt.instance<FinampUserHelper>().currentUser?.publicAddress;
+    final base = server == null ? null : AlacarteConfig.normalize(server);
+    return {...config.addresses, if (base != null) "$base/alacarte"}.toList();
+  }
+
   /// Signs in on every configured address. Returns, per address, null when it works or the error.
   Future<Map<String, String?>> testConnection(AlacarteConfig config) async {
     final results = <String, String?>{};
-    for (final base in config.addresses) {
+    for (final base in withServerAddress(config)) {
       try {
         _cookie = null;
         await _login(config, base);
@@ -103,7 +112,7 @@ class AlacarteService {
 
   /// GET on the address that answered last, falling back to the other one (home / outside).
   Future<Map<String, dynamic>> _get(AlacarteConfig config, String path) async {
-    final addresses = config.addresses;
+    final addresses = withServerAddress(config);
     final ordered = [
       if (_activeBase != null && addresses.contains(_activeBase)) _activeBase!,
       ...addresses.where((a) => a != _activeBase),
@@ -186,7 +195,7 @@ class AlacarteConfig {
   final String username;
   final String password;
 
-  bool get isComplete => addresses.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
+  bool get isComplete => username.isNotEmpty && password.isNotEmpty;
 
   /// Configured addresses, home first.
   List<String> get addresses => [url, outsideUrl].map(normalize).nonNulls.toSet().toList();
