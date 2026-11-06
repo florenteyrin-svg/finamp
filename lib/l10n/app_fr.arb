@@ -3727,5 +3727,7 @@
     "alacartePartlyConnected": "Enregistré : Finamp utilisera l'adresse qui répond.",
     "androidAutoNowPlaying": "En cours",
     "androidAutoCurrentAlbum": "Album : {name}",
-    "androidAutoCurrentArtist": "Artiste : {name}"
+    "androidAutoCurrentArtist": "Artiste : {name}",
+    "androidAutoPlayAlbumButton": "Lire l'album",
+    "androidAutoPlayArtistButton": "Lire l'artiste"
 }

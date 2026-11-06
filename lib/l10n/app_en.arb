@@ -3896,5 +3896,9 @@
     "androidAutoCurrentAlbum": "Album: {name}",
     "@androidAutoCurrentAlbum": {"description": "Android Auto tab with the album and artist of the current track: Album: {name}", "placeholders": {"name": {"type": "String"}}},
     "androidAutoCurrentArtist": "Artist: {name}",
-    "@androidAutoCurrentArtist": {"description": "Android Auto tab with the album and artist of the current track: Artist: {name}", "placeholders": {"name": {"type": "String"}}}
+    "@androidAutoCurrentArtist": {"description": "Android Auto tab with the album and artist of the current track: Artist: {name}", "placeholders": {"name": {"type": "String"}}},
+    "androidAutoPlayAlbumButton": "Play the album",
+    "@androidAutoPlayAlbumButton": {"description": "Player button (Android Auto, notification): play the current track's album / artist"},
+    "androidAutoPlayArtistButton": "Play the artist",
+    "@androidAutoPlayArtistButton": {"description": "Player button (Android Auto, notification): play the current track's album / artist"}
 }

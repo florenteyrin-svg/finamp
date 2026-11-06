@@ -1186,6 +1186,10 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
         return radio_service_helper.toggleRadio();
       case CustomPlaybackActions.toggleFavorite:
         return toggleFavoriteStatusOfCurrentTrack();
+      case CustomPlaybackActions.playCurrentAlbum:
+        return AndroidAutoLinks.playFromCurrent(mediaItem.valueOrNull, album: true, position: _player.position);
+      case CustomPlaybackActions.playCurrentArtist:
+        return AndroidAutoLinks.playFromCurrent(mediaItem.valueOrNull, album: false);
       case CustomPlaybackActions.dbusVolume:
         final volume = extras?["value"] as double?;
         if (volume != null) {
@@ -1327,6 +1331,19 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
         MediaControl.skipToPrevious,
         if (_player.playing) MediaControl.pause else MediaControl.play,
         MediaControl.skipToNext,
+        // Android Auto: jump from a playlist to the current album / artist (browsing is blocked while driving)
+        ...[
+          MediaControl.custom(
+            name: CustomPlaybackActions.playCurrentAlbum.name,
+            androidIcon: "drawable/tabler_icons_disc_24",
+            label: GlobalSnackbar.requireL10n.androidAutoPlayAlbumButton,
+          ),
+          MediaControl.custom(
+            name: CustomPlaybackActions.playCurrentArtist.name,
+            androidIcon: "drawable/tabler_icons_user_24",
+            label: GlobalSnackbar.requireL10n.androidAutoPlayArtistButton,
+          ),
+        ],
         if (FinampSettingsHelper.finampSettings.showFavoriteButtonOnMediaNotification &&
             !FinampSettingsHelper.finampSettings.isOffline)
           MediaControl.custom(
