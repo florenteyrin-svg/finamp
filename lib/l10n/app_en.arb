@@ -3890,5 +3890,11 @@
     "alacarteUseServerAddress": "Use {address}",
     "@alacarteUseServerAddress": {"description": "Alacarte settings: Use {address}", "placeholders": {"address": {"type": "String"}}},
     "alacartePartlyConnected": "Saved: Finamp will use the address that answers.",
-    "@alacartePartlyConnected": {"description": "Alacarte settings: Saved: Finamp will use the address that answers."}
+    "@alacartePartlyConnected": {"description": "Alacarte settings: Saved: Finamp will use the address that answers."},
+    "androidAutoNowPlaying": "Now playing",
+    "@androidAutoNowPlaying": {"description": "Android Auto tab with the album and artist of the current track: Now playing"},
+    "androidAutoCurrentAlbum": "Album: {name}",
+    "@androidAutoCurrentAlbum": {"description": "Android Auto tab with the album and artist of the current track: Album: {name}", "placeholders": {"name": {"type": "String"}}},
+    "androidAutoCurrentArtist": "Artist: {name}",
+    "@androidAutoCurrentArtist": {"description": "Android Auto tab with the album and artist of the current track: Artist: {name}", "placeholders": {"name": {"type": "String"}}}
 }

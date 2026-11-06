@@ -3724,5 +3724,8 @@
     "alacarteOutsideUrl": "Adresse depuis l'extérieur",
     "alacarteOutsideUrlHelper": "Laisse vide pour utiliser l'adresse de ton serveur suivie de /alacarte (un chemin sur le nginx qui sert déjà Allstarr). Finamp utilise l'adresse qui répond.",
     "alacarteUseServerAddress": "Utiliser {address}",
-    "alacartePartlyConnected": "Enregistré : Finamp utilisera l'adresse qui répond."
+    "alacartePartlyConnected": "Enregistré : Finamp utilisera l'adresse qui répond.",
+    "androidAutoNowPlaying": "En cours",
+    "androidAutoCurrentAlbum": "Album : {name}",
+    "androidAutoCurrentArtist": "Artiste : {name}"
 }

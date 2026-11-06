@@ -998,6 +998,12 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   /// Returns the top-level browsable categories for use in a media browser.
   List<MediaItem> _getRootMenu() {
     return [
+      // album and artist of the current track
+      MediaItem(
+        id: AndroidAutoLinks.nowPlayingId,
+        title: _appLocalizations?.androidAutoNowPlaying ?? "Now playing",
+        playable: false,
+      ),
       MediaItem(
         id: MediaItemId(contentType: ContentType.albums, parentType: MediaItemParentType.rootCollection).toString(),
         // ignore: deprecated_member_use_from_same_package
@@ -1049,6 +1055,8 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       );
 
       return _getRootMenu();
+    } else if (parentMediaId == AndroidAutoLinks.nowPlayingId) {
+      return AndroidAutoLinks.nowPlayingChildren(mediaItem.valueOrNull);
     } else if (AndroidAutoLinks.handles(parentMediaId)) {
       // artist or album tapped on the player
       try {
@@ -1073,6 +1081,19 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
         return super.getChildren(parentMediaId);
       }
     }
+  }
+
+  /// Refreshes the "Now playing" tab in Android Auto when the track changes.
+  @override
+  ValueStream<Map<String, dynamic>> subscribeToChildren(String parentMediaId) {
+    if (parentMediaId == AndroidAutoLinks.nowPlayingId) {
+      return mediaItem
+          .map((item) => item?.extras?["itemJson"]?["AlbumId"]?.toString())
+          .distinct()
+          .map((_) => <String, dynamic>{})
+          .shareValue();
+    }
+    return super.subscribeToChildren(parentMediaId);
   }
 
   /// Android Auto asks for the item behind a tapped artist / album name before opening it.

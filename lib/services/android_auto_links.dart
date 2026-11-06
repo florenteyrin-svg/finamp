@@ -29,7 +29,34 @@ class AndroidAutoLinks {
   static String albumId(BaseItemId id) => "${_prefix}album:${id.raw}";
   static String artistId(BaseItemId id) => "${_prefix}artist:${id.raw}";
 
+  /// "Now playing" tab of the browse view: the album and the artist of the current track.
+  static const nowPlayingId = "${_prefix}now-playing";
+
   static bool handles(String mediaId) => mediaId.startsWith(_prefix);
+
+  /// Children of [nowPlayingId] for the track [current] (from the player's current media item).
+  static List<MediaItem> nowPlayingChildren(MediaItem? current) {
+    final json = current?.extras?["itemJson"];
+    if (json is! Map) return [];
+    final item = BaseItemDto.fromJson(Map<String, dynamic>.from(json));
+    final l10n = GlobalSnackbar.requireL10n;
+    final artist = item.artistItems?.firstOrNull ?? item.albumArtists?.firstOrNull;
+    return [
+      if (item.albumId != null)
+        MediaItem(
+          id: albumId(item.albumId!),
+          title: l10n.androidAutoCurrentAlbum(item.album ?? ""),
+          artUri: current?.artUri,
+          playable: false,
+        ),
+      if (artist != null)
+        MediaItem(
+          id: artistId(artist.id),
+          title: l10n.androidAutoCurrentArtist(artist.name ?? item.albumArtist ?? ""),
+          playable: false,
+        ),
+    ];
+  }
 
   /// Display fields and link extras for the now-playing metadata of [item] (a track).
   /// Subtitle = artist (opens the artist), description = album (opens the album).
@@ -51,6 +78,9 @@ class AndroidAutoLinks {
 
   /// The browsable node itself (Android Auto asks for it before opening it).
   static Future<MediaItem?> getItem(String mediaId) async {
+    if (mediaId == nowPlayingId) {
+      return MediaItem(id: mediaId, title: GlobalSnackbar.requireL10n.androidAutoNowPlaying, playable: false);
+    }
     final link = _parse(mediaId);
     if (link == null || link.action != null) return null;
     final item = await GetIt.instance<AndroidAutoHelper>().getParentFromId(link.id);
