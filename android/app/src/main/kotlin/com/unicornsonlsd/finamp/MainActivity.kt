@@ -18,7 +18,11 @@ import androidx.mediarouter.media.MediaRouter
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.unicornsonlsd.finamp.widget.FinampWidgets
+import com.unicornsonlsd.finamp.widget.WidgetState
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
@@ -42,6 +46,11 @@ class MainActivity : AudioServiceActivity() {
 
         private const val SET_NATIVE_THEME_CHANNEL = "com.unicornsonlsd.finamp/set_native_theme"
         private const val SET_NATIVE_THEME_CHANNEL_LOG_TAG = "setNativeThemeChannel"
+
+        private const val HOME_WIDGET_CHANNEL = "com.unicornsonlsd.finamp/home_widget"
+
+        // Not tied to the activity: widgets must keep updating while the app plays in background.
+        private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
     private lateinit var mediaRouter: MediaRouter
@@ -186,6 +195,33 @@ class MainActivity : AudioServiceActivity() {
                     Log.e(SET_NATIVE_THEME_CHANNEL_LOG_TAG, "Method not found: '${call.method}'")
                     result.notImplemented()
                 }
+            }
+        }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            HOME_WIDGET_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "update" -> {
+                    val state = WidgetState(
+                        title = call.argument<String>("title"),
+                        artist = call.argument<String>("artist"),
+                        album = call.argument<String>("album"),
+                        playing = call.argument<Boolean>("playing") ?: false,
+                        artPath = call.argument<String>("artPath"),
+                    )
+                    val context = applicationContext
+                    widgetScope.launch {
+                        try {
+                            WidgetState.save(context, state)
+                            FinampWidgets.updateAll(context)
+                        } catch (e: Exception) {
+                            Log.w("FinampWidgets", "update failed: ${e.message}")
+                        }
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
             }
         }
         MethodChannel(

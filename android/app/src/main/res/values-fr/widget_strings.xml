@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_nothing_playing">Aucune lecture</string>
+    <string name="widget_tap_to_open">Toucher pour ouvrir Finamp</string>
+    <string name="widget_bar_label">Finamp · Barre</string>
+    <string name="widget_bar_description">Pochette, titre et commandes sur une ligne</string>
+    <string name="widget_card_label">Finamp · Carte</string>
+    <string name="widget_card_description">Grande pochette avec titre, artiste, album et commandes</string>
+    <string name="widget_cover_label">Finamp · Pochette</string>
+    <string name="widget_cover_description">Pochette en grand avec titre et bouton lecture</string>
+    <string name="widget_mini_label">Finamp · Mini</string>
+    <string name="widget_mini_description">Titre avec lecture/pause et suivant</string>
+    <string name="widget_previous">Précédent</string>
+    <string name="widget_play_pause">Lecture ou pause</string>
+    <string name="widget_next">Suivant</string>
+    <string name="widget_cover_art">Pochette</string>
+</resources>

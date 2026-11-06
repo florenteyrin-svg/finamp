@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_nothing_playing">Nothing playing</string>
+    <string name="widget_tap_to_open">Tap to open Finamp</string>
+    <string name="widget_bar_label">Finamp · Bar</string>
+    <string name="widget_bar_description">Cover, title and playback controls in one row</string>
+    <string name="widget_card_label">Finamp · Card</string>
+    <string name="widget_card_description">Large cover with title, artist, album and controls</string>
+    <string name="widget_cover_label">Finamp · Cover</string>
+    <string name="widget_cover_description">Full album art with title and play button</string>
+    <string name="widget_mini_label">Finamp · Mini</string>
+    <string name="widget_mini_description">Title with play/pause and next</string>
+    <string name="widget_previous">Previous</string>
+    <string name="widget_play_pause">Play or pause</string>
+    <string name="widget_next">Next</string>
+    <string name="widget_cover_art">Album art</string>
+</resources>

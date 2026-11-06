@@ -26,6 +26,7 @@ import 'package:logging/logging.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'android_auto_helper.dart';
+import 'home_widget_updater.dart';
 import 'finamp_settings_helper.dart';
 import 'metadata_provider.dart';
 
@@ -533,7 +534,12 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     });
 
     fadeState = BehaviorSubject.seeded(FadeState(fadeVolume: 1.0));
+
+    // Android home screen widgets
+    _homeWidgetUpdater = HomeWidgetUpdater(mediaItem: mediaItem, playbackState: playbackState);
   }
+
+  HomeWidgetUpdater? _homeWidgetUpdater;
 
   SleepTimer? get sleepTimer => _timer.value;
 
@@ -608,7 +614,10 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   }
 
   /// Fully dispose the player instance.  Should only be called during app shutdown.
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    _homeWidgetUpdater?.dispose();
+    await _player.dispose();
+  }
 
   @override
   Future<void> play({bool disableFade = false}) async {
