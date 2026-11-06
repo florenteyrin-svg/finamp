@@ -13,6 +13,7 @@ import 'package:finamp/l10n/app_localizations.dart';
 import 'package:finamp/models/finamp_models.dart';
 import 'package:finamp/models/jellyfin_models.dart' as jellyfin_models;
 import 'package:finamp/services/album_image_provider.dart';
+import 'package:finamp/services/android_auto_links.dart';
 import 'package:finamp/services/current_album_image_provider.dart';
 import 'package:finamp/services/downloads_service.dart';
 import 'package:finamp/services/finamp_settings_helper.dart';
@@ -1572,8 +1573,13 @@ class QueueService {
       }
     }
 
+    // Android Auto: tapping the artist or album name on the player opens them (see AndroidAutoLinks).
+    final links = AndroidAutoLinks.forTrack(item);
+
     return MediaItem(
       id: itemId?.toString() ?? uuid.v4(),
+      displaySubtitle: links.subtitle,
+      displayDescription: links.description,
       playable:
           isItemPlayable, // this dictates whether clicking on an item will try to play it or browse it in media browsers like Android Auto
       album: item.album,
@@ -1590,6 +1596,7 @@ class QueueService {
         "android.media.IS_EXPLICIT": item.isExplicit ? 1 : 0,
         "isOffline": FinampSettingsHelper.finampSettings.isOffline,
         "contextNormalizationGain": contextNormalizationGain,
+        ...links.extras,
       },
       // Jellyfin returns microseconds * 10 for some reason
       duration: item.runTimeTicksDuration(),

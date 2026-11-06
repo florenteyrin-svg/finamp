@@ -26,6 +26,7 @@ import 'package:logging/logging.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'android_auto_helper.dart';
+import 'android_auto_links.dart';
 import 'finamp_settings_helper.dart';
 import 'metadata_provider.dart';
 
@@ -1048,6 +1049,14 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       );
 
       return _getRootMenu();
+    } else if (AndroidAutoLinks.handles(parentMediaId)) {
+      // artist or album tapped on the player
+      try {
+        return await AndroidAutoLinks.getChildren(parentMediaId);
+      } catch (e) {
+        _audioServiceBackgroundTaskLogger.severe(e);
+        return [];
+      }
     } else if (parentMediaId == AudioService.recentRootId) {
       // return await _androidAutoHelper.getRecentItems();
       // return playlists for now
@@ -1066,6 +1075,20 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     }
   }
 
+  /// Android Auto asks for the item behind a tapped artist / album name before opening it.
+  @override
+  Future<MediaItem?> getMediaItem(String mediaId) async {
+    if (AndroidAutoLinks.handles(mediaId)) {
+      try {
+        return await AndroidAutoLinks.getItem(mediaId);
+      } catch (e) {
+        _audioServiceBackgroundTaskLogger.severe(e);
+        return null;
+      }
+    }
+    return super.getMediaItem(mediaId);
+  }
+
   /// Called when a media item is requested to be played.
   /// We jerry-rig the [mediaId] to be a JSON string that can be parsed into a [MediaItemId] object, otherwise we don't have a way to tell which item the mediaId refers to.
   @override
@@ -1073,6 +1096,9 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     try {
       if (mediaId == QueueItemSourceNameType.shuffleAll.name) {
         return await _androidAutoHelper.shuffleAllTracks();
+      }
+      if (AndroidAutoLinks.handles(mediaId)) {
+        return await AndroidAutoLinks.play(mediaId);
       }
       final mediaItemId = MediaItemId.fromJson(jsonDecode(mediaId) as Map<String, dynamic>);
 
