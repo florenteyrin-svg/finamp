@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/jellyfin_models.dart';
+import 'finamp_user_helper.dart';
 
 /// Talks to the user's Alacarte server (the Apple Music downloader behind Allstarr) to show the real
 /// download progress of Apple Music albums, as computed by Alacarte itself: finished tracks, the
@@ -297,27 +299,98 @@ class AlbumServerProgress {
   }
 }
 
-/// Polls Alacarte every second and a half while the album screen shows it.
-final albumServerProgressProvider = StreamProvider.autoDispose.family<AlbumServerProgress?, (String, int)>((
+/// Progress read from Allstarr itself, on the address Finamp already uses for the server: no other address or
+/// login needed. Allstarr lists the tracks it is fetching (`/api/admin/downloads/queue`) with their real
+/// progress, and keeps finished ones for a few minutes.
+class AllstarrDownloads {
+  AllstarrDownloads._();
+
+  static final _client = http.Client();
+
+  /// Allstarr's download entries, or null if this server has no such list (not Allstarr, or another version).
+  static Future<List<Map<String, dynamic>>?> fetch(String serverUrl) async {
+    final base = AlacarteConfig.normalize(serverUrl);
+    if (base == null) return null;
+    final response = await _client
+        .get(Uri.parse("$base/api/admin/downloads/queue"))
+        .timeout(const Duration(seconds: 6));
+    if (response.statusCode != 200) return null;
+    final body = jsonDecode(response.body);
+    if (body is! List) return null;
+    return body.whereType<Map<String, dynamic>>().toList();
+  }
+
+  /// Combines the entries of the album's tracks ([trackIds], Allstarr ids `ext-{provider}-song-{id}`).
+  static AlbumServerProgress? progress(List<Map<String, dynamic>> entries, List<String> trackIds) {
+    if (trackIds.isEmpty) return null;
+    final externalIds = {for (final id in trackIds) id.substring(id.lastIndexOf("-") + 1): id};
+    final mine = entries.where((e) {
+      final songId = e["SongId"]?.toString();
+      final externalId = e["ExternalId"]?.toString();
+      return trackIds.contains(songId) || (externalId != null && externalIds.containsKey(externalId));
+    }).toList();
+    if (mine.isEmpty) return null;
+
+    // DownloadStatus: 0 NotStarted, 1 InProgress, 2 Completed, 3 Failed (as numbers or names)
+    int status(Map<String, dynamic> e) => switch (e["Status"]) {
+      final int n => n,
+      "NotStarted" => 0,
+      "InProgress" => 1,
+      "Completed" => 2,
+      "Failed" => 3,
+      _ => -1,
+    };
+    var units = 0.0;
+    var lastUpdate = 0;
+    for (final e in mine) {
+      final s = status(e);
+      units += s == 2 ? 1 : (s == 1 ? ((e["Progress"] as num?)?.toDouble() ?? 0).clamp(0, 1) : 0);
+      for (final key in ["CompletedAt", "StartedAt"]) {
+        final t = DateTime.tryParse(e[key]?.toString() ?? "")?.millisecondsSinceEpoch ?? 0;
+        if (t > lastUpdate) lastUpdate = t;
+      }
+    }
+    final recentlyBusy = DateTime.now().millisecondsSinceEpoch - lastUpdate < 20000;
+    final active = mine.any((e) => status(e) <= 1) || (mine.length < trackIds.length && recentlyBusy);
+    final percent = active ? (units / trackIds.length * 100).floor().clamp(0, 99) : 100;
+    return AlbumServerProgress(percent: percent, active: active, failed: mine.any((e) => status(e) == 3));
+  }
+}
+
+/// Server progress of an Apple Music album: from Alacarte when it is set up in the settings, otherwise from
+/// Allstarr on the server address. [trackIdsKey] is the album's track ids joined with commas.
+final serverAlbumProgressProvider = StreamProvider.autoDispose.family<AlbumServerProgress?, (String, String)>((
   ref,
   args,
 ) async* {
-  final (appleAlbumId, trackCount) = args;
-  final service = AlacarteService.instance;
-  final config = await service.readConfig();
-  if (config == null) {
-    yield null;
-    return;
-  }
+  final (appleAlbumId, trackIdsKey) = args;
+  final trackIds = trackIdsKey.isEmpty ? <String>[] : trackIdsKey.split(",");
+  final alacarte = await AlacarteService.instance.readConfig();
   var stop = false;
   ref.onDispose(() => stop = true);
   while (!stop) {
+    AlbumServerProgress? progress;
     try {
-      yield AlbumServerProgress.from(await service.jobs(config), appleAlbumId, trackCount);
+      if (alacarte != null) {
+        progress = AlbumServerProgress.from(
+          await AlacarteService.instance.jobs(alacarte),
+          appleAlbumId,
+          trackIds.length,
+        );
+      } else {
+        final server = GetIt.instance<FinampUserHelper>().currentUser?.baseURL;
+        final entries = server == null ? null : await AllstarrDownloads.fetch(server);
+        if (entries == null) {
+          // This server does not publish its downloads: nothing to show, stop asking.
+          yield null;
+          return;
+        }
+        progress = AllstarrDownloads.progress(entries, trackIds);
+      }
     } catch (e) {
-      service.log(e);
-      yield null;
+      AlacarteService.instance.log(e);
     }
+    yield progress;
     await Future<void>.delayed(const Duration(milliseconds: 1500));
   }
 });

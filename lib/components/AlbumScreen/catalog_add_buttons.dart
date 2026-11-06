@@ -33,11 +33,12 @@ class CatalogAddButtons extends ConsumerWidget {
     final status = ref.watch(GetIt.instance<DownloadsService>().statusProvider((downloadStub, children?.length)));
     final onPhone = status.isRequired;
 
-    // Real progress of the download to the server, read from Alacarte (when connected in the settings).
+    // Real progress of the download to the server, read from Allstarr (or Alacarte when set up in the settings).
     final appleAlbumId = AlacarteService.appleAlbumId(item);
+    final trackIdsKey = (children ?? []).map((track) => track.id.raw).join(",");
     final serverProgress = appleAlbumId == null
         ? null
-        : ref.watch(albumServerProgressProvider((appleAlbumId, children?.length ?? item.childCount ?? 0))).value;
+        : ref.watch(serverAlbumProgressProvider((appleAlbumId, trackIdsKey))).value;
 
     final Widget addButton;
     if (serverProgress != null && serverProgress.active) {
