@@ -8,7 +8,6 @@ import '../models/finamp_models.dart';
 import '../models/jellyfin_models.dart';
 import 'android_auto_helper.dart';
 import 'artist_content_provider.dart';
-import 'music_player_background_task.dart';
 import 'queue_service.dart';
 
 final _logger = Logger("AndroidAutoLinks");
@@ -148,9 +147,9 @@ class AndroidAutoLinks {
     }
   }
 
-  /// Player buttons (they work while driving, unlike browsing): replace the queue with the album of the current
-  /// track (from that track, keeping the position) or with every track of its artist, shuffled.
-  static Future<void> playFromCurrent(MediaItem? current, {required bool album, Duration? position}) async {
+  /// Player buttons (they work while driving, unlike browsing): replace the queue with the whole album of the
+  /// current track, in order from its first track, or with every track of its artist, shuffled.
+  static Future<void> playFromCurrent(MediaItem? current, {required bool album}) async {
     final json = current?.extras?["itemJson"];
     if (json is! Map) return;
     final item = BaseItemDto.fromJson(Map<String, dynamic>.from(json));
@@ -161,11 +160,9 @@ class AndroidAutoLinks {
     final tracks = await _tracks(kind, parentId);
     if (tracks.isEmpty) return;
     final parent = await GetIt.instance<AndroidAutoHelper>().getParentFromId(parentId);
-    final index = tracks.indexWhere((t) => t.id == item.id);
-    final queueService = GetIt.instance<QueueService>();
-    await queueService.startPlayback(
+    await GetIt.instance<QueueService>().startPlayback(
       items: tracks,
-      startingIndex: album && index >= 0 ? index : null,
+      startingIndex: album ? 0 : null,
       order: album ? FinampPlaybackOrder.linear : FinampPlaybackOrder.shuffled,
       source: QueueItemSource(
         type: album ? QueueItemSourceType.album : QueueItemSourceType.artist,
@@ -174,9 +171,5 @@ class AndroidAutoLinks {
         item: parent,
       ),
     );
-    // Same track as before: carry on where it was instead of starting it again.
-    if (album && index >= 0 && position != null && position > const Duration(seconds: 2)) {
-      await GetIt.instance<MusicPlayerBackgroundTask>().seek(position);
-    }
   }
 }

@@ -1187,7 +1187,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       case CustomPlaybackActions.toggleFavorite:
         return toggleFavoriteStatusOfCurrentTrack();
       case CustomPlaybackActions.playCurrentAlbum:
-        return AndroidAutoLinks.playFromCurrent(mediaItem.valueOrNull, album: true, position: _player.position);
+        return AndroidAutoLinks.playFromCurrent(mediaItem.valueOrNull, album: true);
       case CustomPlaybackActions.playCurrentArtist:
         return AndroidAutoLinks.playFromCurrent(mediaItem.valueOrNull, album: false);
       case CustomPlaybackActions.dbusVolume:
