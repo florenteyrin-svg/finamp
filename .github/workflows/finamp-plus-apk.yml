@@ -36,6 +36,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          # pinned: newer Flutter releases need a newer Gradle than this project uses
+          flutter-version: '3.47.9'
           cache: true
 
       - name: Gradle cache
