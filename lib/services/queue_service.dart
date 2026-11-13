@@ -21,6 +21,7 @@ import 'package:finamp/services/finamp_user_helper.dart';
 import 'package:finamp/services/jellyfin_api_helper.dart';
 import 'package:finamp/services/music_player_background_task.dart';
 import 'package:finamp/services/playback_history_service.dart';
+import 'package:finamp/services/queue_item_cache.dart';
 import 'package:finamp/services/radio_service_helper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
@@ -386,6 +387,7 @@ class QueueService {
       shuffleIndices,
     );
     _queuesBox.put("latest", info);
+    QueueItemCache.remember(queueToSave);
     return info;
   }
 
@@ -503,9 +505,19 @@ class QueueService {
       allIds.addAll(info.sourceList.where((x) => x.wantsItem).map((x) => jellyfin_models.BaseItemId(x.id)));
       Map<jellyfin_models.BaseItemId, jellyfin_models.BaseItemDto> idMap = existingItems ?? {};
 
+      // Tracks kept on the device from the last time: when they are all there, the queue is restored (and can
+      // play) right away instead of waiting for the server to send the whole playlist again.
+      if (existingItems == null && !isReload) {
+        idMap.addAll(QueueItemCache.lookup(allIds));
+      }
+      final allCached = allIds.every(idMap.containsKey);
+      if (allCached) {
+        _queueServiceLogger.info("Restoring the queue from the device cache (${idMap.length} items)");
+      }
+
       // If queue source is playlist, fetch via parent to retrieve metadata needed
       // for removal from playlist via queueItem
-      if (!FinampSettingsHelper.finampSettings.isOffline) {
+      if (!FinampSettingsHelper.finampSettings.isOffline && !allCached) {
         for (final source in info.sourceList.where((x) => x.type == QueueItemSourceType.playlist)) {
           try {
             // Only id and type are really needed to fetch child items.  Full base item will be fetched later.

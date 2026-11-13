@@ -150,6 +150,8 @@ dependencies:
   app_links: ^6.4.0
   flutter_discord_rpc: ^1.0.0
   shared_preferences: ^2.5.3
+  finamp_home_widgets:
+    path: packages/finamp_home_widgets
   flex_color_picker: ^3.7.1
   dynamic_color: ^1.8.1
   dbus: ^0.7.11

@@ -20,6 +20,9 @@ class HomeScreenWidgets {
   static const _channel = MethodChannel("com.unicornsonlsd.finamp/home_screen_widgets");
   static final _logger = Logger("HomeScreenWidgets");
   static StreamSubscription<NowPlayingWidgetState>? _subscription;
+  static Timer? _ticker;
+  static NowPlayingWidgetState? _last;
+  static PlaybackState? _playbackState;
 
   static void start({
     required Stream<MediaItem?> mediaItem,
@@ -28,9 +31,9 @@ class HomeScreenWidgets {
   }) {
     if (!Platform.isAndroid || _subscription != null) return;
     _subscription =
-        Rx.combineLatest3<MediaItem?, bool, FinampQueueItem?, NowPlayingWidgetState>(
+        Rx.combineLatest3<MediaItem?, PlaybackState, FinampQueueItem?, NowPlayingWidgetState>(
               mediaItem,
-              playbackState.map((state) => state.playing).distinct(),
+              playbackState.doOnData((state) => _playbackState = state),
               queue.map(_nextTrack).startWith(null),
               NowPlayingWidgetState.from,
             )
@@ -38,6 +41,13 @@ class HomeScreenWidgets {
             // Track changes come with several quick updates (item, art, play state): only send the last one.
             .debounceTime(const Duration(milliseconds: 300))
             .listen(_send);
+    // Keeps the progress bar of the vinyl widget moving (the elapsed time counts by itself).
+    _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
+      final last = _last;
+      final state = _playbackState;
+      if (last == null || state == null || !last.playing) return;
+      _send(last.withPosition(state.position));
+    });
   }
 
   static FinampQueueItem? _nextTrack(FinampQueueInfo? info) {
@@ -48,6 +58,7 @@ class HomeScreenWidgets {
   }
 
   static Future<void> _send(NowPlayingWidgetState state) async {
+    _last = state;
     try {
       await _channel.invokeMethod<void>("update", state.toMap());
     } catch (e) {
@@ -58,6 +69,8 @@ class HomeScreenWidgets {
   static void stop() {
     _subscription?.cancel();
     _subscription = null;
+    _ticker?.cancel();
+    _ticker = null;
   }
 }
 
@@ -70,9 +83,12 @@ class NowPlayingWidgetState {
     this.nextTitle,
     this.nextArtist,
     required this.playing,
+    this.positionMs = 0,
+    this.durationMs,
   });
 
-  factory NowPlayingWidgetState.from(MediaItem? item, bool playing, FinampQueueItem? next) {
+  factory NowPlayingWidgetState.from(MediaItem? item, PlaybackState playback, FinampQueueItem? next) {
+    final playing = playback.playing;
     // Finamp hands out album art as local files (exposed as content://<package>/<path> on Android).
     final art = item?.artUri;
     final artPath = art != null && (art.scheme == "file" || art.scheme == "content") ? art.path : null;
@@ -84,8 +100,22 @@ class NowPlayingWidgetState {
       nextTitle: next?.item.title,
       nextArtist: next?.item.artist,
       playing: item != null && playing,
+      positionMs: playback.position.inMilliseconds,
+      durationMs: item?.duration?.inMilliseconds,
     );
   }
+
+  NowPlayingWidgetState withPosition(Duration position) => NowPlayingWidgetState(
+    title: title,
+    artist: artist,
+    album: album,
+    artPath: artPath,
+    nextTitle: nextTitle,
+    nextArtist: nextArtist,
+    playing: playing,
+    positionMs: position.inMilliseconds,
+    durationMs: durationMs,
+  );
 
   final String? title;
   final String? artist;
@@ -94,6 +124,8 @@ class NowPlayingWidgetState {
   final String? nextTitle;
   final String? nextArtist;
   final bool playing;
+  final int positionMs;
+  final int? durationMs;
 
   Map<String, Object?> toMap() => {
     "title": title,
@@ -103,6 +135,8 @@ class NowPlayingWidgetState {
     "nextTitle": nextTitle,
     "nextArtist": nextArtist,
     "playing": playing,
+    "positionMs": positionMs,
+    "durationMs": durationMs,
   };
 
   @override
@@ -114,8 +148,11 @@ class NowPlayingWidgetState {
       other.artPath == artPath &&
       other.nextTitle == nextTitle &&
       other.nextArtist == nextArtist &&
-      other.playing == playing;
+      other.playing == playing &&
+      other.positionMs ~/ 1000 == positionMs ~/ 1000 &&
+      other.durationMs == durationMs;
 
   @override
-  int get hashCode => Object.hash(title, artist, album, artPath, nextTitle, nextArtist, playing);
+  int get hashCode =>
+      Object.hash(title, artist, album, artPath, nextTitle, nextArtist, playing, positionMs ~/ 1000, durationMs);
 }

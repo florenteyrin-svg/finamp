@@ -1,0 +1,19 @@
+name: finamp_home_widgets
+description: Finamp's Android home screen widgets (native side).
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.9.0
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.unicornsonlsd.finamp.widgets
+        pluginClass: HomeScreenWidgetsPlugin

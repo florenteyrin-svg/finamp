@@ -2,6 +2,7 @@ package com.unicornsonlsd.finamp.widgets
 
 import android.content.Context
 import android.os.Process
+import android.os.SystemClock
 
 /** What the widgets show. Sent by the Dart side (lib/services/home_screen_widgets.dart). */
 data class NowPlayingState(
@@ -12,7 +13,15 @@ data class NowPlayingState(
     val nextTitle: String? = null,
     val nextArtist: String? = null,
     val playing: Boolean = false,
+    /** Position when the state was received, and when that was (SystemClock.elapsedRealtime). */
+    val positionMs: Long = 0,
+    val durationMs: Long? = null,
+    val receivedAt: Long = SystemClock.elapsedRealtime(),
 ) {
+    /** Where playback is now. */
+    fun currentPositionMs(): Long =
+        if (playing) positionMs + (SystemClock.elapsedRealtime() - receivedAt) else positionMs
+
     companion object {
         fun fromMap(map: Map<*, *>?): NowPlayingState = NowPlayingState(
             title = map?.get("title") as? String,
@@ -22,6 +31,8 @@ data class NowPlayingState(
             nextTitle = map?.get("nextTitle") as? String,
             nextArtist = map?.get("nextArtist") as? String,
             playing = map?.get("playing") as? Boolean ?: false,
+            positionMs = (map?.get("positionMs") as? Number)?.toLong() ?: 0,
+            durationMs = (map?.get("durationMs") as? Number)?.toLong(),
         )
     }
 }
@@ -40,6 +51,9 @@ object NowPlayingStore {
             .putString("nextArtist", state.nextArtist)
             .putBoolean("playing", state.playing)
             .putInt("pid", Process.myPid())
+            .putLong("positionMs", state.positionMs)
+            .putLong("durationMs", state.durationMs ?: -1)
+            .putLong("receivedAt", state.receivedAt)
             .apply()
     }
 
@@ -54,6 +68,9 @@ object NowPlayingStore {
             nextArtist = prefs.getString("nextArtist", null),
             // Saved by another process: the app was closed or the phone restarted since, so nothing is playing.
             playing = prefs.getBoolean("playing", false) && prefs.getInt("pid", -1) == Process.myPid(),
+            positionMs = prefs.getLong("positionMs", 0),
+            durationMs = prefs.getLong("durationMs", -1).takeIf { it > 0 },
+            receivedAt = prefs.getLong("receivedAt", SystemClock.elapsedRealtime()),
         )
     }
 }

@@ -564,6 +564,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.6"
+  finamp_home_widgets:
+    dependency: "direct main"
+    description:
+      path: "packages/finamp_home_widgets"
+      relative: true
+    source: path
+    version: "1.0.0"
   fixnum:
     dependency: transitive
     description:

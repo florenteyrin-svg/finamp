@@ -57,6 +57,17 @@ object Artwork {
         return output
     }
 
+    /** The art cut into a circle, as the label of the record. */
+    fun circle(source: Bitmap): Bitmap {
+        val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        }
+        val radius = min(source.width, source.height) / 2f
+        Canvas(output).drawCircle(source.width / 2f, source.height / 2f, radius, paint)
+        return output
+    }
+
     /** A dark colour taken from the art, so white text stays readable on it. */
     fun backgroundColor(art: Bitmap): Int {
         val small = Bitmap.createScaledBitmap(art, 16, 16, true)

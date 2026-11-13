@@ -17,4 +17,6 @@
     <string name="widget_pause">Pause</string>
     <string name="widget_previous">Previous</string>
     <string name="widget_next">Next</string>
+    <string name="widget_vinyl_name">Vinyl</string>
+    <string name="widget_vinyl_description">A record that spins while playing, with progress and controls</string>
 </resources>

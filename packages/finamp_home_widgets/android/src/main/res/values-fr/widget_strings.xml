@@ -17,4 +17,6 @@
     <string name="widget_pause">Pause</string>
     <string name="widget_previous">Précédent</string>
     <string name="widget_next">Suivant</string>
+    <string name="widget_vinyl_name">Vinyle</string>
+    <string name="widget_vinyl_description">Un disque qui tourne pendant la lecture, avec la progression et les commandes</string>
 </resources>

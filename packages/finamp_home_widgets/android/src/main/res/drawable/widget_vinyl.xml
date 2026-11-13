@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A record: grooves and two light reflections, which make the rotation visible -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp" android:viewportWidth="100" android:viewportHeight="100">
+    <path android:fillColor="#FF141414" android:pathData="M50,0a50,50 0,1 0,0.01 0z" />
+    <path android:strokeColor="#FF2B2B2B" android:strokeWidth="0.8" android:pathData="M50,4a46,46 0,1 0,0.01 0z" />
+    <path android:strokeColor="#FF262626" android:strokeWidth="0.8" android:pathData="M50,9a41,41 0,1 0,0.01 0z" />
+    <path android:strokeColor="#FF2B2B2B" android:strokeWidth="0.8" android:pathData="M50,14a36,36 0,1 0,0.01 0z" />
+    <path android:strokeColor="#FF262626" android:strokeWidth="0.8" android:pathData="M50,19a31,31 0,1 0,0.01 0z" />
+    <path android:strokeColor="#FF2B2B2B" android:strokeWidth="0.8" android:pathData="M50,24a26,26 0,1 0,0.01 0z" />
+    <path android:fillColor="#26FFFFFF" android:pathData="M50,50L50,2A48,48 0,0 1,83.9 16Z" />
+    <path android:fillColor="#1AFFFFFF" android:pathData="M50,50L50,98A48,48 0,0 1,16.1 84Z" />
+</vector>

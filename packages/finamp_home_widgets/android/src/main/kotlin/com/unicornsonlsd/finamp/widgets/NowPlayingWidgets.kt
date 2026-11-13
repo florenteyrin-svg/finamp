@@ -7,12 +7,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.widget.RemoteViews
-import com.unicornsonlsd.finamp.MainActivity
-import com.unicornsonlsd.finamp.R
 import java.util.concurrent.Executors
 
 /**
@@ -35,6 +34,9 @@ enum class WidgetModel(val layout: Int, val artSizeDp: Int, val roundedArt: Bool
 
     /** 2x1: previous / play / next only, on a translucent background. */
     CONTROLS(R.layout.widget_now_playing_controls, 0, false),
+
+    /** 4x2: a record that spins while playing, with the art as its label, progress and controls. */
+    VINYL(R.layout.widget_now_playing_vinyl, 64, false),
 }
 
 abstract class NowPlayingWidgetProvider(private val model: WidgetModel) : AppWidgetProvider() {
@@ -53,6 +55,7 @@ class BarWidget : NowPlayingWidgetProvider(WidgetModel.BAR)
 class MediumWidget : NowPlayingWidgetProvider(WidgetModel.MEDIUM)
 class LargeWidget : NowPlayingWidgetProvider(WidgetModel.LARGE)
 class ControlsWidget : NowPlayingWidgetProvider(WidgetModel.CONTROLS)
+class VinylWidget : NowPlayingWidgetProvider(WidgetModel.VINYL)
 
 object NowPlayingWidgets {
     private val providers = mapOf(
@@ -61,6 +64,7 @@ object NowPlayingWidgets {
         WidgetModel.MEDIUM to MediumWidget::class.java,
         WidgetModel.LARGE to LargeWidget::class.java,
         WidgetModel.CONTROLS to ControlsWidget::class.java,
+        WidgetModel.VINYL to VinylWidget::class.java,
     )
 
     // One thread, so updates are applied in the order they were sent.
@@ -107,10 +111,17 @@ object NowPlayingWidgets {
         }
         if (model.artSizeDp > 0) {
             if (art != null) {
-                val shown = if (model.roundedArt) Artwork.rounded(art, res.getDimension(R.dimen.widget_art_radius), artSizePx) else art
+                val shown = when {
+                    model == WidgetModel.VINYL -> Artwork.circle(art)
+                    model.roundedArt -> Artwork.rounded(art, res.getDimension(R.dimen.widget_art_radius), artSizePx)
+                    else -> art
+                }
                 views.setImageViewBitmap(R.id.widget_art, shown)
             } else {
-                views.setImageViewResource(R.id.widget_art, R.drawable.widget_art_placeholder)
+                views.setImageViewResource(
+                    R.id.widget_art,
+                    if (model == WidgetModel.VINYL) R.drawable.widget_ic_music else R.drawable.widget_art_placeholder,
+                )
             }
         }
 
@@ -133,6 +144,8 @@ object NowPlayingWidgets {
             }
         }
 
+        if (model == WidgetModel.VINYL) renderVinyl(views, state)
+
         // Buttons
         views.setImageViewResource(R.id.widget_play, if (state.playing) R.drawable.widget_ic_pause else R.drawable.widget_ic_play)
         views.setContentDescription(
@@ -143,11 +156,39 @@ object NowPlayingWidgets {
         if (model != WidgetModel.COVER) {
             views.setOnClickPendingIntent(R.id.widget_skip_next, mediaButton(context, KeyEvent.KEYCODE_MEDIA_NEXT))
         }
-        if (model == WidgetModel.MEDIUM || model == WidgetModel.LARGE || model == WidgetModel.CONTROLS) {
+        if (model == WidgetModel.MEDIUM || model == WidgetModel.LARGE || model == WidgetModel.CONTROLS ||
+            model == WidgetModel.VINYL
+        ) {
             views.setOnClickPendingIntent(R.id.widget_skip_previous, mediaButton(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
         }
         views.setOnClickPendingIntent(R.id.widget_root, openApp(context))
         return views
+    }
+
+    /** The record spins (an indeterminate ProgressBar, the only animation widgets can run) only while playing. */
+    private fun renderVinyl(views: RemoteViews, state: NowPlayingState) {
+        views.setViewVisibility(R.id.widget_vinyl_spinning, if (state.playing) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_vinyl_still, if (state.playing) View.GONE else View.VISIBLE)
+        views.setImageViewResource(
+            R.id.widget_tonearm,
+            if (state.playing) R.drawable.widget_tonearm_on else R.drawable.widget_tonearm_off,
+        )
+        val duration = state.durationMs
+        val position = state.currentPositionMs().coerceAtLeast(0)
+        if (duration != null && duration > 0) {
+            views.setProgressBar(R.id.widget_progress, 1000, (position * 1000 / duration).toInt().coerceIn(0, 1000), false)
+            views.setTextViewText(R.id.widget_duration, formatTime(duration))
+        } else {
+            views.setProgressBar(R.id.widget_progress, 1000, 0, false)
+            views.setTextViewText(R.id.widget_duration, "")
+        }
+        // Counts up by itself while playing
+        views.setChronometer(R.id.widget_elapsed, SystemClock.elapsedRealtime() - position, null, state.playing)
+    }
+
+    private fun formatTime(ms: Long): String {
+        val totalSeconds = ms / 1000
+        return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
     }
 
     private fun setOptionalText(views: RemoteViews, id: Int, text: String?) {
@@ -160,9 +201,7 @@ object NowPlayingWidgets {
     }
 
     private fun openApp(context: Context): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java)
-            .setAction(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_LAUNCHER)
+        val intent = (context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent())
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         return PendingIntent.getActivity(
             context,
