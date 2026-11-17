@@ -1,3 +1,4 @@
+import 'package:finamp/components/PlayerScreen/quality_badge.dart';
 import 'dart:ui';
 
 import 'package:collection/collection.dart';
@@ -232,23 +233,40 @@ class FeatureChips extends ConsumerWidget {
         //TODO if feature chips are disabled, this won't be logged, but is super useful for debugging. Ideally, move the whole metadata stuff into the metadata provider and log it there, and then use the generated values to create the feature chips if needed
         featureLogger.finer("Current track features: ${featureState.properties}");
 
-        return Padding(
-          padding: const EdgeInsets.only(left: 32.0, right: 32.0),
-          child: ScrollConfiguration(
-            // Allow drag scrolling on desktop
-            behavior: ScrollConfiguration.of(context).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Builder(
-                builder: (context) {
-                  return Features(
-                    backgroundColor: IconTheme.of(context).color?.withValues(alpha: 0.1) ?? _defaultBackgroundColour,
-                    features: featureState,
-                  );
-                },
-              ),
+        // Hi-Res / CD / MP3 logo for what is actually played (after any transcoding)
+        final quality = ListeningQuality.of(
+          codec: featureState.audioStream?.codec,
+          bitDepth: featureState.bitDepth,
+          sampleRate: featureState.sampleRate,
+        );
+
+        final chips = ScrollConfiguration(
+          // Allow drag scrolling on desktop
+          behavior: ScrollConfiguration.of(context).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Builder(
+              builder: (context) {
+                return Features(
+                  backgroundColor: IconTheme.of(context).color?.withValues(alpha: 0.1) ?? _defaultBackgroundColour,
+                  features: featureState,
+                );
+              },
             ),
           ),
+        );
+
+        return Padding(
+          padding: const EdgeInsets.only(left: 32.0, right: 32.0),
+          child: quality == null
+              ? chips
+              : Row(
+                  children: [
+                    QualityBadge(quality: quality, codec: featureState.codec),
+                    const SizedBox(width: 8),
+                    Expanded(child: chips),
+                  ],
+                ),
         );
       },
     );
