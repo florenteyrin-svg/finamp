@@ -49,13 +49,20 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
-      # The APK is signed with the runner's Android debug key. It is kept in this repository's private
-      # Actions cache, so new builds install as updates over older ones (as long as the cache lives).
-      - name: Signing key cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.android/debug.keystore
-          key: finamp-plus-debug-keystore-v1
+      # Every build is signed with the same key, kept in two repository secrets (never in the repository),
+      # so new versions install over older ones and keep the downloads.
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.FINAMP_PLUS_KEYSTORE }}
+          KEY_PASSWORD: ${{ secrets.FINAMP_PLUS_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Add the FINAMP_PLUS_KEYSTORE and FINAMP_PLUS_KEY_PASSWORD secrets (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+          echo "$KEYSTORE" | base64 -d > android/app/finamp-plus.p12
+          printf 'storeFile=finamp-plus.p12\nstorePassword=%s\nkeyAlias=finampplus\nkeyPassword=%s\n' \
+            "$KEY_PASSWORD" "$KEY_PASSWORD" > android/key.properties
 
       - run: flutter pub get
 

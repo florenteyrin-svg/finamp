@@ -12,3 +12,6 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Finamp+ signing key, written by the APK workflow from a secret
+app/finamp-plus.p12
