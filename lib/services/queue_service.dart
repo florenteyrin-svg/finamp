@@ -1590,6 +1590,8 @@ class QueueService {
 
     return MediaItem(
       id: itemId?.toString() ?? uuid.v4(),
+      // Android Auto only reads the subtitle and description when the display title is set as well.
+      displayTitle: links.subtitle != null || links.description != null ? item.name : null,
       displaySubtitle: links.subtitle,
       displayDescription: links.description,
       playable:

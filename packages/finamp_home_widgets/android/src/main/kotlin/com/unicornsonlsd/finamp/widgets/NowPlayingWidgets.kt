@@ -188,6 +188,20 @@ object NowPlayingWidgets {
             views.setProgressBar(R.id.widget_progress, 1000, 0, false)
             views.setTextViewText(R.id.widget_duration, "")
         }
+        val qualityLogo = when (state.quality) {
+            "Hi-Res" -> R.drawable.widget_quality_hires
+            "CD" -> R.drawable.widget_quality_cd
+            "MP3" -> R.drawable.widget_quality_mp3
+            else -> null
+        }
+        if (qualityLogo == null || state.title == null) {
+            views.setViewVisibility(R.id.widget_quality, View.GONE)
+        } else {
+            views.setViewVisibility(R.id.widget_quality, View.VISIBLE)
+            views.setImageViewResource(R.id.widget_quality, qualityLogo)
+            views.setContentDescription(R.id.widget_quality, state.quality)
+        }
+
         // Counts up by itself while playing
         views.setChronometer(R.id.widget_elapsed, SystemClock.elapsedRealtime() - position, null, state.playing)
     }

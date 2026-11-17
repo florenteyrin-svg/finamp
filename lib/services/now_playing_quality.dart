@@ -34,6 +34,9 @@ class NowPlayingQuality {
   /// Labels added after the artist ("Rohff · Hi-Res"): Android Auto versions that ignore the icon still show it.
   static const _labels = ["Hi-Res", "CD", "MP3"];
   static const _separator = " · ";
+
+  /// Media item extra with the quality label ("Hi-Res", "CD", "MP3"), read by the home screen widgets.
+  static const qualityExtraKey = "finampQuality";
   static String? _packageName;
   static bool _started = false;
 
@@ -65,8 +68,16 @@ class NowPlayingQuality {
     if (current.extras?[_largeIconKey] == quality.icon && current.displaySubtitle == subtitle) return;
     handler.mediaItem.add(
       current.copyWith(
+        // Android Auto only reads the subtitle when the display title is set as well
+        displayTitle: current.displayTitle ?? current.title,
         displaySubtitle: subtitle,
-        extras: {...?current.extras, _largeIconKey: quality.icon, _smallIconKey: quality.icon},
+        extras: {
+          ...?current.extras,
+          _largeIconKey: quality.icon,
+          _smallIconKey: quality.icon,
+          // for the home screen widgets
+          qualityExtraKey: quality.label,
+        },
       ),
     );
   }

@@ -39,6 +39,7 @@
                 android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
+                android:layout_marginEnd="30dp"
                 android:textColor="#FFFFFFFF"
                 android:textSize="16sp" />
 
@@ -140,6 +141,18 @@
                     android:src="@drawable/widget_ic_artist" />
             </LinearLayout>
         </LinearLayout>
+
+        <!-- Hi-Res / CD / MP3 logo of what is playing -->
+        <ImageView
+            android:id="@+id/widget_quality"
+            android:layout_width="wrap_content"
+            android:layout_height="22dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="10dp"
+            android:adjustViewBounds="true"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
     </FrameLayout>
 
     <!-- The record, over the card, the full height of the widget -->

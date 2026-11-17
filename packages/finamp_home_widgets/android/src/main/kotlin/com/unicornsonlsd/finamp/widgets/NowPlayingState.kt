@@ -17,6 +17,8 @@ data class NowPlayingState(
     val positionMs: Long = 0,
     val durationMs: Long? = null,
     val receivedAt: Long = SystemClock.elapsedRealtime(),
+    /** "Hi-Res", "CD" or "MP3" */
+    val quality: String? = null,
 ) {
     /** Where playback is now. */
     fun currentPositionMs(): Long =
@@ -33,6 +35,7 @@ data class NowPlayingState(
             playing = map?.get("playing") as? Boolean ?: false,
             positionMs = (map?.get("positionMs") as? Number)?.toLong() ?: 0,
             durationMs = (map?.get("durationMs") as? Number)?.toLong(),
+            quality = map?.get("quality") as? String,
         )
     }
 }
@@ -54,6 +57,7 @@ object NowPlayingStore {
             .putLong("positionMs", state.positionMs)
             .putLong("durationMs", state.durationMs ?: -1)
             .putLong("receivedAt", state.receivedAt)
+            .putString("quality", state.quality)
             .apply()
     }
 
@@ -71,6 +75,7 @@ object NowPlayingStore {
             positionMs = prefs.getLong("positionMs", 0),
             durationMs = prefs.getLong("durationMs", -1).takeIf { it > 0 },
             receivedAt = prefs.getLong("receivedAt", SystemClock.elapsedRealtime()),
+            quality = prefs.getString("quality", null),
         )
     }
 }

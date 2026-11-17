@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../models/finamp_models.dart';
+import 'now_playing_quality.dart';
 
 /// Sends what is playing to the Android home screen widgets
 /// (android/app/src/main/kotlin/com/unicornsonlsd/finamp/widgets).
@@ -85,6 +86,7 @@ class NowPlayingWidgetState {
     required this.playing,
     this.positionMs = 0,
     this.durationMs,
+    this.quality,
   });
 
   factory NowPlayingWidgetState.from(MediaItem? item, PlaybackState playback, FinampQueueItem? next) {
@@ -102,6 +104,7 @@ class NowPlayingWidgetState {
       playing: item != null && playing,
       positionMs: playback.position.inMilliseconds,
       durationMs: item?.duration?.inMilliseconds,
+      quality: item?.extras?[NowPlayingQuality.qualityExtraKey] as String?,
     );
   }
 
@@ -115,6 +118,7 @@ class NowPlayingWidgetState {
     playing: playing,
     positionMs: position.inMilliseconds,
     durationMs: durationMs,
+    quality: quality,
   );
 
   final String? title;
@@ -127,6 +131,9 @@ class NowPlayingWidgetState {
   final int positionMs;
   final int? durationMs;
 
+  /// "Hi-Res", "CD" or "MP3", once known
+  final String? quality;
+
   Map<String, Object?> toMap() => {
     "title": title,
     "artist": artist,
@@ -137,6 +144,7 @@ class NowPlayingWidgetState {
     "playing": playing,
     "positionMs": positionMs,
     "durationMs": durationMs,
+    "quality": quality,
   };
 
   @override
@@ -150,9 +158,20 @@ class NowPlayingWidgetState {
       other.nextArtist == nextArtist &&
       other.playing == playing &&
       other.positionMs ~/ 1000 == positionMs ~/ 1000 &&
-      other.durationMs == durationMs;
+      other.durationMs == durationMs &&
+      other.quality == quality;
 
   @override
-  int get hashCode =>
-      Object.hash(title, artist, album, artPath, nextTitle, nextArtist, playing, positionMs ~/ 1000, durationMs);
+  int get hashCode => Object.hash(
+    title,
+    artist,
+    album,
+    artPath,
+    nextTitle,
+    nextArtist,
+    playing,
+    positionMs ~/ 1000,
+    durationMs,
+    quality,
+  );
 }
