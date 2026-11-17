@@ -53,6 +53,7 @@ import 'package:finamp/services/item_helper.dart';
 import 'package:finamp/services/keep_screen_on_helper.dart';
 import 'package:finamp/services/music_providers.dart';
 import 'package:finamp/services/network_manager.dart';
+import 'package:finamp/services/now_playing_quality.dart';
 import 'package:finamp/services/offline_listen_helper.dart';
 import 'package:finamp/services/playback_history_service.dart';
 import 'package:finamp/services/playon_service.dart';
@@ -490,6 +491,7 @@ Future<void> _setupPlaybackServices() async {
   var queueService = QueueService();
   GetIt.instance.registerSingleton(queueService);
   audioHandler.onQueueServiceAvailable(); // breaking circular dependency
+  unawaited(NowPlayingQuality.start(audioHandler));
   HomeScreenWidgets.start(
     mediaItem: audioHandler.mediaItem,
     playbackState: audioHandler.playbackState,
