@@ -48,7 +48,7 @@ class MusicAssistantCast {
               } else if (playing) {
                 // Finamp's own play button: resume the player where it is, the phone stays silent
                 await handler.pause();
-                final target = player;
+                final target = this.player; // null once casting stopped
                 if (target != null) {
                   try {
                     await _service.command(target.id, "play");
