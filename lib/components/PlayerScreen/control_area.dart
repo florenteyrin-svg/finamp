@@ -6,6 +6,7 @@ import 'package:finamp/utils/platform_helper.dart';
 import 'package:flutter/material.dart';
 
 import 'feature_chips.dart';
+import 'music_assistant_remote.dart';
 import 'player_buttons.dart';
 import 'progress_slider.dart';
 
@@ -19,6 +20,8 @@ class ControlArea extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Remote for the Music Assistant player the music was sent to (Apple TV...)
+        const MusicAssistantRemote(),
         if (controller.shouldShow(PlayerHideable.features)) const FeatureChips(),
         if (controller.shouldShow(PlayerHideable.progressSlider))
           if (isDesktop)

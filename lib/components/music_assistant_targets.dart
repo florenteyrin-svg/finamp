@@ -52,6 +52,7 @@ class _MusicAssistantTargetsState extends State<MusicAssistantTargets> {
     try {
       await MusicAssistantService.instance.play(player.id, ids, audioHandler.playbackPosition);
       await audioHandler.pause();
+      MusicAssistantService.instance.activePlayer.add(player);
       GlobalSnackbar.message((_) => l10n.musicAssistantSent(player.name));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {

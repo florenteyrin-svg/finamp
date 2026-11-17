@@ -3926,5 +3926,11 @@
     "musicAssistantUnavailable": "Unavailable",
     "@musicAssistantUnavailable": {"description": "Music Assistant integration: Unavailable"},
     "musicAssistantNotInLibrary": "This track is not in the Jellyfin library yet: add it first (Apple Music)",
-    "@musicAssistantNotInLibrary": {"description": "Music Assistant integration: This track is not in the Jellyfin library yet: add it first (Apple Music)"}
+    "@musicAssistantNotInLibrary": {"description": "Music Assistant integration: This track is not in the Jellyfin library yet: add it first (Apple Music)"},
+    "musicAssistantPlayingOn": "Playing on {player}",
+    "@musicAssistantPlayingOn": {"description": "Music Assistant remote: Playing on {player}", "placeholders": {"player": {"type": "String"}}},
+    "musicAssistantResumeHere": "Resume on this phone",
+    "@musicAssistantResumeHere": {"description": "Music Assistant remote: Resume on this phone"},
+    "musicAssistantForget": "Hide the remote",
+    "@musicAssistantForget": {"description": "Music Assistant remote: Hide the remote"}
 }

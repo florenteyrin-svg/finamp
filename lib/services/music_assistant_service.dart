@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A player of Music Assistant (e.g. an Apple TV through AirPlay).
@@ -12,6 +13,25 @@ class MusicAssistantPlayer {
   final String id;
   final String name;
   final bool available;
+}
+
+/// What a Music Assistant player is playing.
+class MusicAssistantNowPlaying {
+  MusicAssistantNowPlaying({
+    this.title,
+    this.artist,
+    this.jellyfinId,
+    required this.position,
+    required this.playing,
+    this.volume,
+  });
+
+  final String? title;
+  final String? artist;
+  final String? jellyfinId;
+  final Duration position;
+  final bool playing;
+  final int? volume;
 }
 
 class MusicAssistantException implements Exception {
@@ -132,6 +152,48 @@ class MusicAssistantService {
           }
         }
       });
+
+  /// The player the music was sent to: Finamp shows a remote for it until the music comes back to the phone.
+  final activePlayer = BehaviorSubject<MusicAssistantPlayer?>.seeded(null);
+
+  /// Sends a player command ("next", "previous", "play_pause", "stop"...).
+  Future<void> command(String playerId, String name, [Map<String, Object?> args = const {}]) =>
+      _withConnection((connection) => connection.call("players/cmd/$name", {"player_id": playerId, ...args}));
+
+  /// What the player plays: from its queue (title, artist, Jellyfin id, position) and its volume.
+  Future<MusicAssistantNowPlaying?> nowPlaying(String playerId) => _withConnection((connection) async {
+    final queue = await connection.call("player_queues/get", {"queue_id": playerId});
+    final player = await connection.call("players/get", {"player_id": playerId});
+    if (queue is! Map) return null;
+    final item = queue["current_item"];
+    final media = item is Map ? item["media_item"] : null;
+    String? jellyfinId;
+    if (media is Map) {
+      final uri = media["uri"]?.toString() ?? "";
+      if (uri.startsWith("jellyfin")) jellyfinId = uri.split("/").last;
+      for (final mapping in (media["provider_mappings"] as List? ?? const [])) {
+        if (jellyfinId == null && mapping is Map && "${mapping["provider_domain"]}".startsWith("jellyfin")) {
+          jellyfinId = mapping["item_id"]?.toString();
+        }
+      }
+    }
+    final state = queue["state"]?.toString();
+    final playing = state == "playing";
+    var elapsed = (queue["elapsed_time"] as num?)?.toDouble() ?? 0;
+    final updated = (queue["elapsed_time_last_updated"] as num?)?.toDouble();
+    if (playing && updated != null) {
+      elapsed += DateTime.now().millisecondsSinceEpoch / 1000 - updated;
+    }
+    final artists = media is Map ? media["artists"] : null;
+    return MusicAssistantNowPlaying(
+      title: (media is Map ? media["name"] : null)?.toString() ?? (item is Map ? item["name"]?.toString() : null),
+      artist: artists is List && artists.isNotEmpty && artists.first is Map ? artists.first["name"]?.toString() : null,
+      jellyfinId: jellyfinId,
+      position: Duration(milliseconds: (elapsed * 1000).round().clamp(0, 1 << 31)),
+      playing: playing,
+      volume: player is Map ? (player["volume_level"] as num?)?.toInt() : null,
+    );
+  });
 
   void log(Object e) => _logger.warning("Music Assistant: $e");
 }
