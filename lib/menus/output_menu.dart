@@ -6,6 +6,7 @@ import 'package:finamp/components/Buttons/cta_medium.dart';
 import 'package:finamp/components/Shortcuts/global_shortcut_manager.dart';
 import 'package:finamp/components/Shortcuts/music_control_shortcuts.dart';
 import 'package:finamp/components/global_snackbar.dart';
+import 'package:finamp/components/music_assistant_targets.dart';
 import 'package:finamp/components/themed_bottom_sheet.dart';
 import 'package:finamp/components/toggleable_list_tile.dart';
 import 'package:finamp/l10n/app_localizations.dart';
@@ -130,6 +131,20 @@ Future<void> showOutputMenu({required BuildContext context, bool usePlayerTheme 
               child: OutputTargetList(), // Pass the outputRoutes
             ),
           ),
+        // Send the music to a Music Assistant player (Apple TV...)
+        SliverStickyHeader(
+          header: Padding(
+            padding: const EdgeInsets.only(top: 10.0, bottom: 8.0, left: 16.0, right: 16.0),
+            child: Text(
+              AppLocalizations.of(context)!.musicAssistantSendTo,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          sliver: MenuMask(
+            height: OutputMenuHeader.defaultHeight,
+            child: const SliverToBoxAdapter(child: MusicAssistantTargets()),
+          ),
+        ),
       ];
       // TODO better estimate, how to deal with lag getting playlists?
       var stackHeight = MediaQuery.heightOf(context) * (Platform.isAndroid ? 0.65 : 0.4);

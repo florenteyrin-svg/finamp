@@ -1,3 +1,4 @@
+import 'package:finamp/screens/music_assistant_settings_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:finamp/services/home_screen_widgets.dart';
 import 'dart:io';
@@ -169,6 +170,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => Navigator.of(context).pushNamed(NetworkSettingsScreen.routeName),
           ),
           if (Platform.isAndroid) const _WidgetSpectrumTile(),
+          ListTile(
+            leading: const Icon(TablerIcons.cast),
+            title: const Text("Music Assistant"),
+            subtitle: Text(AppLocalizations.of(context)!.musicAssistantSettingsSubtitle),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => const MusicAssistantSettingsScreen())),
+          ),
           ListTile(
             leading: const Icon(TablerIcons.brand_apple),
             title: Text(AppLocalizations.of(context)!.alacarteSettingsTitle),

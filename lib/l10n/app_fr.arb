@@ -3731,5 +3731,16 @@
     "androidAutoPlayAlbumButton": "Lire l'album",
     "androidAutoPlayArtistButton": "Lire l'artiste",
     "widgetSpectrumTitle": "Spectre en direct sur le widget Vinyle",
-    "widgetSpectrumSubtitle": "Analyse la musique jouée par Finamp. Android exige pour ça l'autorisation du micro, mais seul le son de l'app est analysé et rien n'est enregistré. Touche le spectre sur le widget pour changer de style."
+    "widgetSpectrumSubtitle": "Analyse la musique jouée par Finamp. Android exige pour ça l'autorisation du micro, mais seul le son de l'app est analysé et rien n'est enregistré. Touche le spectre sur le widget pour changer de style.",
+    "musicAssistantSendTo": "Envoyer vers (Music Assistant)",
+    "musicAssistantSetUp": "Connecter Music Assistant",
+    "musicAssistantSettingsSubtitle": "Envoyer la musique vers ses lecteurs (Apple TV…)",
+    "musicAssistantDescription": "Connecte-toi avec ton compte Music Assistant. Finamp garde un jeton nommé « Finamp » (pas ton mot de passe). Les lecteurs apparaissent ensuite dans le menu Sortie, sous « Envoyer vers » : le morceau en cours continue sur le lecteur choisi à la même seconde, avec la suite de la file. Music Assistant lit les morceaux depuis Jellyfin, donc les titres Apple Music pas encore ajoutés à la bibliothèque sont ignorés.",
+    "musicAssistantUrl": "Adresse de Music Assistant",
+    "musicAssistantSignIn": "Se connecter",
+    "musicAssistantConnected": "Connecté. Lecteurs : {players}",
+    "musicAssistantError": "Music Assistant : {error}",
+    "musicAssistantSent": "Lecture sur {player}",
+    "musicAssistantUnavailable": "Indisponible",
+    "musicAssistantNotInLibrary": "Ce titre n'est pas encore dans la bibliothèque Jellyfin : ajoute-le d'abord (Apple Music)"
 }
