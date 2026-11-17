@@ -146,7 +146,7 @@ object NowPlayingWidgets {
 
         if (model == WidgetModel.VINYL) {
             renderVinyl(views, state)
-            renderSpinningLabel(views, state, art)
+            renderSpinningLabel(context, views, state, art)
         }
 
         // Buttons
@@ -192,25 +192,24 @@ object NowPlayingWidgets {
         views.setChronometer(R.id.widget_elapsed, SystemClock.elapsedRealtime() - position, null, state.playing)
     }
 
-    private val labelFrameIds = intArrayOf(
-        R.id.widget_label_0, R.id.widget_label_1, R.id.widget_label_2, R.id.widget_label_3, R.id.widget_label_4,
-        R.id.widget_label_5, R.id.widget_label_6, R.id.widget_label_7, R.id.widget_label_8, R.id.widget_label_9,
-        R.id.widget_label_10, R.id.widget_label_11, R.id.widget_label_12, R.id.widget_label_13, R.id.widget_label_14,
-        R.id.widget_label_15, R.id.widget_label_16, R.id.widget_label_17,
-    )
+    private val labelFrameIds = intArrayOf(R.id.widget_label_0, R.id.widget_label_1, R.id.widget_label_2, R.id.widget_label_3, R.id.widget_label_4, R.id.widget_label_5, R.id.widget_label_6, R.id.widget_label_7, R.id.widget_label_8, R.id.widget_label_9, R.id.widget_label_10, R.id.widget_label_11, R.id.widget_label_12, R.id.widget_label_13, R.id.widget_label_14, R.id.widget_label_15, R.id.widget_label_16, R.id.widget_label_17, R.id.widget_label_18, R.id.widget_label_19, R.id.widget_label_20, R.id.widget_label_21, R.id.widget_label_22, R.id.widget_label_23, R.id.widget_label_24, R.id.widget_label_25, R.id.widget_label_26, R.id.widget_label_27, R.id.widget_label_28, R.id.widget_label_29, R.id.widget_label_30, R.id.widget_label_31, R.id.widget_label_32, R.id.widget_label_33, R.id.widget_label_34, R.id.widget_label_35, R.id.widget_label_36, R.id.widget_label_37, R.id.widget_label_38, R.id.widget_label_39, R.id.widget_label_40, R.id.widget_label_41, R.id.widget_label_42, R.id.widget_label_43, R.id.widget_label_44)
 
     /**
      * Makes the album art turn with the record: widgets cannot rotate a picture, so each frame of a ViewFlipper
-     * holds the art turned 20 degrees further, flipped every 100 ms (one turn in 1.8 s, like the grooves).
-     * Small frames keep the update under the size Android allows for a widget.
+     * shows the art turned a little further (45 frames, 40 ms each: 25 frames per second, one turn in 1.8 s like
+     * the grooves). The frames are PNG files handed over by address (content://), so their number and size are
+     * not limited by the amount of data a widget update may carry.
      */
-    private fun renderSpinningLabel(views: RemoteViews, state: NowPlayingState, art: android.graphics.Bitmap?) {
-        val spinning = state.playing && art != null
+    private fun renderSpinningLabel(context: Context, views: RemoteViews, state: NowPlayingState, art: android.graphics.Bitmap?) {
+        val frames = if (state.playing && art != null) {
+            Artwork.rotatedLabelFiles(context, state.artPath ?: "", art, labelFrameIds.size, 160)
+        } else {
+            null
+        }
+        val spinning = frames != null
         views.setViewVisibility(R.id.widget_label_spinning, if (spinning) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_art, if (spinning) View.GONE else View.VISIBLE)
-        if (!spinning || art == null) return
-        val frames = Artwork.rotatedLabels(art, labelFrameIds.size, 88)
-        frames.forEachIndexed { i, frame -> views.setImageViewBitmap(labelFrameIds[i], frame) }
+        frames?.forEachIndexed { i, uri -> views.setImageViewUri(labelFrameIds[i], uri) }
     }
 
     private fun formatTime(ms: Long): String {

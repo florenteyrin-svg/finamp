@@ -12,6 +12,8 @@ import android.graphics.Shader
 import android.os.Build
 import android.util.Log
 import java.io.File
+import java.io.FileOutputStream
+import android.net.Uri
 import kotlin.math.max
 import kotlin.math.min
 
@@ -68,17 +70,35 @@ object Artwork {
         return output
     }
 
-    /** [count] copies of the art as a round label, each turned 360/[count] degrees further, [sizePx] wide. */
-    fun rotatedLabels(source: Bitmap, count: Int, sizePx: Int): List<Bitmap> {
-        val label = circle(Bitmap.createScaledBitmap(source, sizePx, sizePx, true))
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-        return List(count) { i ->
-            val frame = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-            Canvas(frame).apply {
-                rotate(i * 360f / count, sizePx / 2f, sizePx / 2f)
-                drawBitmap(label, 0f, 0f, paint)
+    /**
+     * [count] PNG files of the art as a round label, each turned 360/[count] degrees further, [sizePx] wide, as
+     * content:// addresses the launcher can read (served by the app's MediaItemContentProvider, which serves
+     * local files by path). Made once per album art; older frames are deleted.
+     */
+    fun rotatedLabelFiles(context: Context, key: String, source: Bitmap, count: Int, sizePx: Int): List<Uri>? {
+        return try {
+            val dir = File(context.cacheDir, "widget_label_frames")
+            val name = Integer.toHexString(key.hashCode())
+            val files = List(count) { i -> File(dir, "${name}_${count}_$i.png") }
+            if (!files.all { it.isFile }) {
+                dir.deleteRecursively()
+                dir.mkdirs()
+                val label = circle(Bitmap.createScaledBitmap(source, sizePx, sizePx, true))
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                files.forEachIndexed { i, file ->
+                    val frame = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    Canvas(frame).apply {
+                        rotate(i * 360f / count, sizePx / 2f, sizePx / 2f)
+                        drawBitmap(label, 0f, 0f, paint)
+                    }
+                    FileOutputStream(file).use { frame.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    frame.recycle()
+                }
             }
-            frame
+            files.map { Uri.Builder().scheme("content").authority(context.packageName).path(it.absolutePath).build() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not make the spinning label", e)
+            null
         }
     }
 
