@@ -112,15 +112,25 @@ class MusicAssistantService {
   });
 
   /// Replaces the queue of [playerId] with the Jellyfin tracks [trackIds] (Music Assistant's Jellyfin provider
-  /// uses the same ids) and starts the first one at [startPosition].
+  /// uses the same ids), in this order from the first one, then moves to [startPosition].
   Future<void> play(String playerId, List<String> trackIds, Duration startPosition) =>
       _withConnection((connection) async {
         await connection.call("player_queues/play_media", {
           "queue_id": playerId,
           "media": [for (final id in trackIds) "jellyfin://track/$id"],
           "option": "replace",
-          "start_position": startPosition.inMilliseconds / 1000.0,
+          // Without this, the player's own shuffle setting would mix the list and start on another track
+          "shuffle": false,
         });
+        // A start position is refused for a list of tracks: seek once the first one plays
+        if (startPosition > const Duration(seconds: 3)) {
+          await Future<void>.delayed(const Duration(milliseconds: 2500));
+          try {
+            await connection.call("players/cmd/seek", {"player_id": playerId, "position": startPosition.inSeconds});
+          } catch (e) {
+            log("seek: $e");
+          }
+        }
       });
 
   void log(Object e) => _logger.warning("Music Assistant: $e");
