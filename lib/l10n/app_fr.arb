@@ -3745,5 +3745,5 @@
     "musicAssistantNotInLibrary": "Ce titre n'est pas encore dans la bibliothèque Jellyfin : ajoute-le d'abord (Apple Music)",
     "musicAssistantPlayingOn": "Lecture sur {player}",
     "musicAssistantResumeHere": "Reprendre sur le téléphone",
-    "musicAssistantForget": "Masquer la télécommande"
+    "musicAssistantForget": "Quitter la diffusion (la musique continue là-bas)"
 }

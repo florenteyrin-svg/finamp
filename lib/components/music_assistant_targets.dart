@@ -2,7 +2,7 @@ import 'package:finamp/components/global_snackbar.dart';
 import 'package:finamp/l10n/app_localizations.dart';
 import 'package:finamp/screens/music_assistant_settings_screen.dart';
 import 'package:finamp/services/music_assistant_service.dart';
-import 'package:finamp/services/music_player_background_task.dart';
+import 'package:finamp/services/music_assistant_cast.dart';
 import 'package:finamp/services/queue_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
@@ -34,25 +34,14 @@ class _MusicAssistantTargetsState extends State<MusicAssistantTargets> {
 
   Future<void> _send(MusicAssistantPlayer player) async {
     final l10n = AppLocalizations.of(context)!;
-    final queue = GetIt.instance<QueueService>().getQueue();
-    final current = queue.currentTrack;
-    if (current == null) return;
-    // Music Assistant reads the tracks from Jellyfin: Apple Music items not yet added to the library are skipped
-    final ids = [
-      current,
-      ...queue.nextUp,
-      ...queue.queue,
-    ].map((item) => item.baseItemId.raw).where((id) => !id.startsWith("ext-")).take(300).toList();
-    if (ids.isEmpty || current.baseItemId.raw.startsWith("ext-")) {
+    final current = GetIt.instance<QueueService>().getCurrentTrack();
+    if (current == null || current.baseItemId.raw.startsWith("ext-")) {
       GlobalSnackbar.message((_) => l10n.musicAssistantNotInLibrary);
       return;
     }
     setState(() => _sending = player.id);
-    final audioHandler = GetIt.instance<MusicPlayerBackgroundTask>();
     try {
-      await MusicAssistantService.instance.play(player.id, ids, audioHandler.playbackPosition);
-      await audioHandler.pause();
-      MusicAssistantService.instance.activePlayer.add(player);
+      await MusicAssistantCast.instance.start(player);
       GlobalSnackbar.message((_) => l10n.musicAssistantSent(player.name));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {

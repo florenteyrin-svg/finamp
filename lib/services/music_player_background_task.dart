@@ -80,6 +80,15 @@ class PlayerVolumeController {
   double _fadeVolume = 1.0;
   bool isDucked = false;
 
+  /// Music sent to a Music Assistant player: the phone stays silent while Finamp acts as the remote.
+  bool _castMuted = false;
+
+  Future<void> setCastMuted(bool muted) {
+    if (muted == _castMuted) return Future.value();
+    _castMuted = muted;
+    return _updateVolume();
+  }
+
   Future<void> setInternalVolume(double volume) {
     if (volume == _internalVolume) return Future.value();
     _internalVolume = volume;
@@ -116,7 +125,7 @@ class PlayerVolumeController {
     var vol2 = _replayGainVolume.clamp(0.0, 1.0);
     var vol3 = _fadeVolume.clamp(0.0, 1.0);
     var duckingFactor = isDucked ? 0.3 : 1.0;
-    var totalVol = vol1 * vol2 * vol3 * duckingFactor;
+    var totalVol = _castMuted ? 0.0 : vol1 * vol2 * vol3 * duckingFactor;
     _volumeLogger.info(
       "Setting volume to $totalVol - user: $_internalVolume gain: $_replayGainVolume fade: $_fadeVolume, ducking: $isDucked",
     );
@@ -662,6 +671,9 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   void setVolume(final double volume) async {
     return _volume.setInternalVolume(volume);
   }
+
+  /// Silences the phone while the music plays on a Music Assistant player (see MusicAssistantCast).
+  Future<void> setCastMuted(bool muted) => _volume.setCastMuted(muted);
 
   @override
   Future<void> pause({bool disableFade = false}) async {

@@ -3931,6 +3931,6 @@
     "@musicAssistantPlayingOn": {"description": "Music Assistant remote: Playing on {player}", "placeholders": {"player": {"type": "String"}}},
     "musicAssistantResumeHere": "Resume on this phone",
     "@musicAssistantResumeHere": {"description": "Music Assistant remote: Resume on this phone"},
-    "musicAssistantForget": "Hide the remote",
+    "musicAssistantForget": "Stop casting (keeps playing there)",
     "@musicAssistantForget": {"description": "Music Assistant remote: Hide the remote"}
 }
