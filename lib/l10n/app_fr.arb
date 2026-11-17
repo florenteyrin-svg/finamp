@@ -3729,5 +3729,7 @@
     "androidAutoCurrentAlbum": "Album : {name}",
     "androidAutoCurrentArtist": "Artiste : {name}",
     "androidAutoPlayAlbumButton": "Lire l'album",
-    "androidAutoPlayArtistButton": "Lire l'artiste"
+    "androidAutoPlayArtistButton": "Lire l'artiste",
+    "widgetSpectrumTitle": "Spectre en direct sur le widget Vinyle",
+    "widgetSpectrumSubtitle": "Analyse la musique jouée par Finamp. Android exige pour ça l'autorisation du micro, mais seul le son de l'app est analysé et rien n'est enregistré. Touche le spectre sur le widget pour changer de style."
 }

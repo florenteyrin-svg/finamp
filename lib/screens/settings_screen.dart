@@ -1,3 +1,6 @@
+import 'package:permission_handler/permission_handler.dart';
+import 'package:finamp/services/home_screen_widgets.dart';
+import 'dart:io';
 import 'package:finamp/components/SettingsScreen/logout_list_tile.dart';
 import 'package:finamp/components/finamp_app_bar_back_button.dart';
 import 'package:finamp/components/finamp_icon.dart';
@@ -165,6 +168,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: Text(AppLocalizations.of(context)!.networkSettingsTitle),
             onTap: () => Navigator.of(context).pushNamed(NetworkSettingsScreen.routeName),
           ),
+          if (Platform.isAndroid) const _WidgetSpectrumTile(),
           ListTile(
             leading: const Icon(TablerIcons.brand_apple),
             title: Text(AppLocalizations.of(context)!.alacarteSettingsTitle),
@@ -246,6 +250,53 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const LogoutListTile(),
         ],
       ),
+    );
+  }
+}
+
+/// Turns on the live spectrum of the vinyl widget, asking for the microphone permission Android requires to
+/// analyse the app's own audio.
+class _WidgetSpectrumTile extends StatefulWidget {
+  const _WidgetSpectrumTile();
+
+  @override
+  State<_WidgetSpectrumTile> createState() => _WidgetSpectrumTileState();
+}
+
+class _WidgetSpectrumTileState extends State<_WidgetSpectrumTile> {
+  bool _enabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    HomeScreenWidgets.spectrumEnabled().then((value) async {
+      // the permission may have been withdrawn in the system settings since
+      final granted = await Permission.microphone.isGranted;
+      if (mounted) setState(() => _enabled = value && granted);
+    });
+  }
+
+  Future<void> _toggle(bool value) async {
+    if (value) {
+      final status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        if (status.isPermanentlyDenied) await openAppSettings();
+        return;
+      }
+    }
+    await HomeScreenWidgets.setSpectrumEnabled(value);
+    if (mounted) setState(() => _enabled = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return SwitchListTile(
+      secondary: const Icon(TablerIcons.wave_sine),
+      title: Text(l10n.widgetSpectrumTitle),
+      subtitle: Text(l10n.widgetSpectrumSubtitle),
+      value: _enabled,
+      onChanged: _toggle,
     );
   }
 }

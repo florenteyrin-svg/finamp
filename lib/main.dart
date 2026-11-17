@@ -496,6 +496,7 @@ Future<void> _setupPlaybackServices() async {
     mediaItem: audioHandler.mediaItem,
     playbackState: audioHandler.playbackState,
     queue: queueService.getQueueStream(),
+    audioSessionId: audioHandler.androidAudioSessionIdStream,
   );
   GetIt.instance.registerSingleton(PlaybackHistoryService());
   GetIt.instance.registerSingleton(AudioServiceHelper());

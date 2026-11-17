@@ -22,6 +22,16 @@ class HomeScreenWidgetsPlugin : FlutterPlugin {
                         NowPlayingWidgets.updateInBackground(context, NowPlayingState.fromMap(call.arguments as? Map<*, *>))
                         result.success(null)
                     }
+                    "spectrum" -> {
+                        val args = call.arguments as? Map<*, *>
+                        SpectrumEngine.update(
+                            context,
+                            (args?.get("sessionId") as? Number)?.toInt() ?: 0,
+                            args?.get("playing") as? Boolean ?: false,
+                            args?.get("enabled") as? Boolean ?: false,
+                        )
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

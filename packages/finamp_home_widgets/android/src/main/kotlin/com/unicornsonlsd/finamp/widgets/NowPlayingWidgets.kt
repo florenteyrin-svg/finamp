@@ -145,7 +145,7 @@ object NowPlayingWidgets {
         }
 
         if (model == WidgetModel.VINYL) {
-            renderVinyl(views, state)
+            renderVinyl(context, views, state)
             renderSpinningLabel(context, views, state, art)
         }
 
@@ -172,7 +172,7 @@ object NowPlayingWidgets {
     }
 
     /** The record spins (an indeterminate ProgressBar, the only animation widgets can run) only while playing. */
-    private fun renderVinyl(views: RemoteViews, state: NowPlayingState) {
+    private fun renderVinyl(context: Context, views: RemoteViews, state: NowPlayingState) {
         views.setViewVisibility(R.id.widget_vinyl_spinning, if (state.playing) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_vinyl_still, if (state.playing) View.GONE else View.VISIBLE)
         views.setImageViewResource(
@@ -201,6 +201,12 @@ object NowPlayingWidgets {
             views.setImageViewResource(R.id.widget_quality, qualityLogo)
             views.setContentDescription(R.id.widget_quality, state.quality)
         }
+
+        // Tap the spectrum for its next style
+        views.setOnClickPendingIntent(
+            R.id.widget_spectrum,
+            WidgetActions.pendingIntent(context, WidgetActions.NEXT_SPECTRUM_STYLE),
+        )
 
         // Counts up by itself while playing
         views.setChronometer(R.id.widget_elapsed, SystemClock.elapsedRealtime() - position, null, state.playing)

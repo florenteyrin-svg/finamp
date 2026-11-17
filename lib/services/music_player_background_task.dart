@@ -536,6 +536,9 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
     fadeState = BehaviorSubject.seeded(FadeState(fadeVolume: 1.0));
   }
 
+  /// Android audio session of the player, for the live spectrum of the vinyl widget.
+  Stream<int?> get androidAudioSessionIdStream => _player.androidAudioSessionIdStream;
+
   SleepTimer? get sleepTimer => _timer.value;
 
   /// this could be useful for updating queue state from this player class, but isn't used right now due to limitations with just_audio

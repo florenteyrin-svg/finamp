@@ -3900,5 +3900,9 @@
     "androidAutoPlayAlbumButton": "Play the album",
     "@androidAutoPlayAlbumButton": {"description": "Player button (Android Auto, notification): play the current track's album / artist"},
     "androidAutoPlayArtistButton": "Play the artist",
-    "@androidAutoPlayArtistButton": {"description": "Player button (Android Auto, notification): play the current track's album / artist"}
+    "@androidAutoPlayArtistButton": {"description": "Player button (Android Auto, notification): play the current track's album / artist"},
+    "widgetSpectrumTitle": "Live spectrum on the vinyl widget",
+    "@widgetSpectrumTitle": {"description": "Settings switch for the vinyl widget spectrum"},
+    "widgetSpectrumSubtitle": "Analyses the music Finamp plays. Android requires the microphone permission for it, but only the app's own sound is analysed and nothing is recorded. Tap the spectrum on the widget to change its style.",
+    "@widgetSpectrumSubtitle": {"description": "Settings switch for the vinyl widget spectrum"}
 }

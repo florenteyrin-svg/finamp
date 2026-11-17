@@ -5,6 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/finamp_models.dart';
 import 'now_playing_quality.dart';
@@ -25,12 +26,40 @@ class HomeScreenWidgets {
   static NowPlayingWidgetState? _last;
   static PlaybackState? _playbackState;
 
+  static StreamSubscription<void>? _spectrumSubscription;
+
+  /// Live spectrum behind the title of the vinyl widget (needs the microphone permission, see [setSpectrumEnabled]).
+  static const spectrumPreference = "widgetSpectrumEnabled";
+  static final _spectrumEnabled = BehaviorSubject<bool>.seeded(false);
+
+  static Future<bool> spectrumEnabled() async =>
+      (await SharedPreferences.getInstance()).getBool(spectrumPreference) ?? false;
+
+  static Future<void> setSpectrumEnabled(bool enabled) async {
+    await (await SharedPreferences.getInstance()).setBool(spectrumPreference, enabled);
+    _spectrumEnabled.add(enabled);
+  }
+
   static void start({
     required Stream<MediaItem?> mediaItem,
     required Stream<PlaybackState> playbackState,
     required Stream<FinampQueueInfo?> queue,
+    Stream<int?>? audioSessionId,
   }) {
     if (!Platform.isAndroid || _subscription != null) return;
+    if (audioSessionId != null) {
+      unawaited(spectrumEnabled().then(_spectrumEnabled.add));
+      _spectrumSubscription =
+          Rx.combineLatest3<int?, bool, bool, Map<String, Object?>>(
+                audioSessionId,
+                playbackState.map((state) => state.playing).distinct(),
+                _spectrumEnabled.distinct(),
+                (session, playing, enabled) => {"sessionId": session ?? 0, "playing": playing, "enabled": enabled},
+              )
+              .distinct((a, b) => a.toString() == b.toString())
+              .asyncMap((args) => _channel.invokeMethod<void>("spectrum", args).catchError((_) {}))
+              .listen((_) {});
+    }
     _subscription =
         Rx.combineLatest3<MediaItem?, PlaybackState, FinampQueueItem?, NowPlayingWidgetState>(
               mediaItem,
@@ -72,6 +101,8 @@ class HomeScreenWidgets {
     _subscription = null;
     _ticker?.cancel();
     _ticker = null;
+    _spectrumSubscription?.cancel();
+    _spectrumSubscription = null;
   }
 }
 

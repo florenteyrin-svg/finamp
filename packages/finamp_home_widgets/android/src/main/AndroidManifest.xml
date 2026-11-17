@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Home screen widgets, merged into the app's manifest -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Live spectrum of the vinyl widget: Android's Visualizer requires it, even for the app's own audio -->
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
   <application>
     <receiver
         android:name="com.unicornsonlsd.finamp.widgets.CoverWidget"

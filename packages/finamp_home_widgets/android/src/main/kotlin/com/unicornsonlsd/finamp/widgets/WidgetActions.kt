@@ -17,6 +17,9 @@ import android.util.Log
 object WidgetActions {
     const val PLAY_ALBUM = "playCurrentAlbum"
     const val PLAY_ARTIST = "playCurrentArtist"
+
+    /** Not a media session action: switches the spectrum of the vinyl widget to its next style. */
+    const val NEXT_SPECTRUM_STYLE = "nextSpectrumStyle"
     private const val EXTRA_ACTION = "action"
 
     fun pendingIntent(context: Context, action: String): PendingIntent {
@@ -62,6 +65,10 @@ object WidgetActions {
 class WidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = WidgetActions.actionOf(intent) ?: return
+        if (action == WidgetActions.NEXT_SPECTRUM_STYLE) {
+            SpectrumEngine.nextStyle(context)
+            return
+        }
         val pending = goAsync()
         WidgetActions.send(context, action) { pending.finish() }
     }

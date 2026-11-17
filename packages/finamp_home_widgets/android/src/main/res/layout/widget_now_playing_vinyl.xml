@@ -23,6 +23,17 @@
             android:scaleType="fitXY"
             android:src="@drawable/widget_shape" />
 
+        <!-- Live spectrum behind the title and artist (tap: next style) -->
+        <ImageView
+            android:id="@+id/widget_spectrum"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginStart="80dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="12dp"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
