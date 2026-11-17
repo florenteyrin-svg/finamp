@@ -169,14 +169,7 @@ class FeatureState {
           features.add(FeatureProperties(type: feature, text: AppLocalizations.of(context)!.numberAsBit(bitDepth!)));
         }
 
-        if (feature == FinampFeatureChipType.sampleRate && sampleRate != null) {
-          features.add(
-            FeatureProperties(
-              type: feature,
-              text: AppLocalizations.of(context)!.numberAsKiloHertz(sampleRate! / 1000.0),
-            ),
-          );
-        }
+        // No sample rate chip ("44.1 kHz"): the Hi-Res / CD / MP3 logo already tells the quality.
 
         if (feature == FinampFeatureChipType.size && size != null) {
           features.add(FeatureProperties(type: feature, text: FileSize.getSize(size)));
