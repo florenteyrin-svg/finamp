@@ -36,7 +36,7 @@ enum class WidgetModel(val layout: Int, val artSizeDp: Int, val roundedArt: Bool
     CONTROLS(R.layout.widget_now_playing_controls, 0, false),
 
     /** 4x2: a record that spins while playing, with the art as its label, progress and controls. */
-    VINYL(R.layout.widget_now_playing_vinyl, 64, false),
+    VINYL(R.layout.widget_now_playing_vinyl, 80, false),
 }
 
 abstract class NowPlayingWidgetProvider(private val model: WidgetModel) : AppWidgetProvider() {
@@ -202,7 +202,7 @@ object NowPlayingWidgets {
      */
     private fun renderSpinningLabel(context: Context, views: RemoteViews, state: NowPlayingState, art: android.graphics.Bitmap?) {
         val frames = if (state.playing && art != null) {
-            Artwork.rotatedLabelFiles(context, state.artPath ?: "", art, labelFrameIds.size, 128)
+            Artwork.rotatedLabelFiles(context, state.artPath ?: "", art, labelFrameIds.size, 144)
         } else {
             null
         }

@@ -1,63 +1,185 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- "Vinyle" model: a record that spins while playing, the album art as its label -->
+<!-- "Vinyle" model: a big record coming out of a smaller card (title, progress, controls), like a record sliding
+     out of its sleeve. The rest of the widget is transparent. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/widget_outline"
-    android:clipToOutline="true">
+    android:layout_height="match_parent">
 
-    <ImageView
-        android:id="@+id/widget_background"
+    <!-- The card starts behind the middle of the record -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:importantForAccessibility="no"
-        android:scaleType="fitXY"
-        android:src="@drawable/widget_shape" />
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_marginStart="68dp"
+        android:background="@drawable/widget_outline"
+        android:clipToOutline="true">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="12dp">
+        <ImageView
+            android:id="@+id/widget_background"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_shape" />
 
-        <FrameLayout
-            android:layout_width="112dp"
-            android:layout_height="112dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="80dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="4dp">
+
+            <TextView
+                android:id="@+id/widget_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:textColor="#FFFFFFFF"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/widget_artist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#D9FFFFFF"
+                android:textSize="13sp" />
 
             <ProgressBar
-                android:id="@+id/widget_vinyl_spinning"
+                android:id="@+id/widget_progress"
+                style="@android:style/Widget.ProgressBar.Horizontal"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:indeterminate="true"
-                android:indeterminateDrawable="@drawable/widget_vinyl_rotating"
-                android:indeterminateDuration="1728"
-                android:indeterminateOnly="true"
-                android:visibility="gone" />
+                android:layout_height="4dp"
+                android:layout_marginTop="8dp"
+                android:max="1000"
+                android:progressDrawable="@drawable/widget_progress" />
 
-            <ImageView
-                android:id="@+id/widget_vinyl_still"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:importantForAccessibility="no"
-                android:src="@drawable/widget_vinyl" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:orientation="horizontal">
 
-            <ImageView
-                android:id="@+id/widget_art"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_gravity="center"
-                android:importantForAccessibility="no"
-                android:scaleType="centerCrop"
-                android:src="@drawable/widget_ic_music" />
+                <Chronometer
+                    android:id="@+id/widget_elapsed"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="#B3FFFFFF"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/widget_duration"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#B3FFFFFF"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/widget_btn_album"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/widget_play_album"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/widget_ic_album" />
+                <ImageButton
+                    android:id="@+id/widget_skip_previous"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/widget_previous"
+                    android:padding="9dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/widget_ic_previous" />
+
+                <ImageButton
+                    android:id="@+id/widget_play"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="14dp"
+                    android:layout_marginEnd="14dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/widget_play"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/widget_ic_play" />
+
+                <ImageButton
+                    android:id="@+id/widget_skip_next"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/widget_next"
+                    android:padding="9dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/widget_ic_next" />
+                <ImageButton
+                    android:id="@+id/widget_btn_artist"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/widget_play_artist"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/widget_ic_artist" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- The record, over the card, the full height of the widget -->
+    <FrameLayout
+        android:layout_width="136dp"
+        android:layout_height="136dp"
+        android:layout_gravity="center_vertical|start">
+
+        <ProgressBar
+            android:id="@+id/widget_vinyl_spinning"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:indeterminate="true"
+            android:indeterminateDrawable="@drawable/widget_vinyl_rotating"
+            android:indeterminateDuration="1728"
+            android:indeterminateOnly="true"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/widget_vinyl_still"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_vinyl" />
+
+        <ImageView
+            android:id="@+id/widget_art"
+            android:layout_width="54dp"
+            android:layout_height="54dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop"
+            android:src="@drawable/widget_ic_music" />
 
             <!-- While playing: the label turned a bit more in each frame, flipped in step with the record
                  (108 frames x 16 ms = one turn in 1.73 s, like the grooves: 60 frames per second) -->
             <ViewFlipper
                 android:id="@+id/widget_label_spinning"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="54dp"
+                android:layout_height="54dp"
                 android:layout_gravity="center"
                 android:autoStart="true"
                 android:flipInterval="16"
@@ -604,128 +726,11 @@
                     android:importantForAccessibility="no" />
             </ViewFlipper>
 
-            <ImageView
-                android:id="@+id/widget_tonearm"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:importantForAccessibility="no"
-                android:src="@drawable/widget_tonearm_off" />
-        </FrameLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/widget_title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:fontFamily="sans-serif-medium"
-                android:maxLines="1"
-                android:textColor="#FFFFFFFF"
-                android:textSize="16sp" />
-
-            <TextView
-                android:id="@+id/widget_artist"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#D9FFFFFF"
-                android:textSize="13sp" />
-
-            <ProgressBar
-                android:id="@+id/widget_progress"
-                style="@android:style/Widget.ProgressBar.Horizontal"
-                android:layout_width="match_parent"
-                android:layout_height="4dp"
-                android:layout_marginTop="10dp"
-                android:max="1000"
-                android:progressDrawable="@drawable/widget_progress" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:orientation="horizontal">
-
-                <Chronometer
-                    android:id="@+id/widget_elapsed"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textColor="#B3FFFFFF"
-                    android:textSize="11sp" />
-
-                <TextView
-                    android:id="@+id/widget_duration"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="#B3FFFFFF"
-                    android:textSize="11sp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:gravity="center"
-                android:orientation="horizontal">
-
-                <ImageButton
-                    android:id="@+id/widget_btn_album"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:background="@android:color/transparent"
-                    android:contentDescription="@string/widget_play_album"
-                    android:padding="8dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/widget_ic_album" />
-                <ImageButton
-                    android:id="@+id/widget_skip_previous"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="@android:color/transparent"
-                    android:contentDescription="@string/widget_previous"
-                    android:padding="9dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/widget_ic_previous" />
-
-                <ImageButton
-                    android:id="@+id/widget_play"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="14dp"
-                    android:layout_marginEnd="14dp"
-                    android:background="@android:color/transparent"
-                    android:contentDescription="@string/widget_play"
-                    android:padding="8dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/widget_ic_play" />
-
-                <ImageButton
-                    android:id="@+id/widget_skip_next"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="@android:color/transparent"
-                    android:contentDescription="@string/widget_next"
-                    android:padding="9dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/widget_ic_next" />
-                <ImageButton
-                    android:id="@+id/widget_btn_artist"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:background="@android:color/transparent"
-                    android:contentDescription="@string/widget_play_artist"
-                    android:padding="8dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/widget_ic_artist" />
-            </LinearLayout>
-        </LinearLayout>
-    </LinearLayout>
+        <ImageView
+            android:id="@+id/widget_tonearm"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_tonearm_off" />
+    </FrameLayout>
 </FrameLayout>
