@@ -625,6 +625,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
 
   @override
   Future<void> play({bool disableFade = false}) async {
+    _forwardToCast("play");
     _audioServiceBackgroundTaskLogger.info(
       "play() start: disableFade=$disableFade, playing=${_player.playing}, fadeDirection=${fadeState.value.fadeDirection}, currentIndex=${_player.currentIndex}, position=${_player.position}",
     );
@@ -675,8 +676,22 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   /// Silences the phone while the music plays on a Music Assistant player (see MusicAssistantCast).
   Future<void> setCastMuted(bool muted) => _volume.setCastMuted(muted);
 
+  /// While casting to a Music Assistant player, play / pause / seek from anywhere (player screen, notification,
+  /// widgets, Android Auto) are also sent to it. The phone keeps playing muted, as a mirror for the screen.
+  Future<void> Function(String command, Map<String, Object?> args)? castForwarder;
+
+  /// Set while the mirror follows the player, so those changes are not sent back to it.
+  bool suppressCastForward = false;
+
+  void _forwardToCast(String command, [Map<String, Object?> args = const {}]) {
+    final forward = castForwarder;
+    if (forward == null || suppressCastForward) return;
+    unawaited(forward(command, args).catchError((Object _) {}));
+  }
+
   @override
   Future<void> pause({bool disableFade = false}) async {
+    _forwardToCast("pause");
     _audioServiceBackgroundTaskLogger.info(
       "pause() start: disableFade=$disableFade, playing=${_player.playing}, fadeDirection=${fadeState.value.fadeDirection}, currentIndex=${_player.currentIndex}, position=${_player.position}",
     );
@@ -946,6 +961,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
 
   @override
   Future<void> seek(Duration position) async {
+    _forwardToCast("seek", {"position": position.inSeconds});
     try {
       await _player.seek(position);
     } catch (e) {

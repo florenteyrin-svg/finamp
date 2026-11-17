@@ -1,117 +1,163 @@
 import 'dart:async';
 
 import 'package:get_it/get_it.dart';
-import 'package:rxdart/rxdart.dart';
 
 import '../components/global_snackbar.dart';
 import 'music_assistant_service.dart';
 import 'music_player_background_task.dart';
 import 'queue_service.dart';
 
-/// "Casting" to a Music Assistant player (Apple TV...): while it is on, whatever starts playing in Finamp (an
-/// album, a playlist, shuffle, next...) goes to the player instead of the phone. The phone's player stays muted
-/// and paused; it only follows the queue, and each new start is handed over to Music Assistant.
+/// "Casting" to a Music Assistant player (Apple TV...).
+///
+/// The music plays on the player; the phone keeps playing the same queue **muted**, as a mirror, so the player
+/// screen (title, cover, progress, queue), the notification, the widgets and Android Auto stay right and their
+/// buttons work as a remote:
+/// * play / pause / seek are forwarded to the player (MusicPlayerBackgroundTask.castForwarder);
+/// * when the phone moves to another track (next, previous, an album, a playlist...), the queue from that track
+///   is sent to the player, unless the player is already on it (the end of a track on both sides);
+/// * every 3 seconds the mirror follows the player: same track, same position, same play state.
 class MusicAssistantCast {
   MusicAssistantCast._();
   static final instance = MusicAssistantCast._();
 
   final _service = MusicAssistantService.instance;
-  StreamSubscription<void>? _subscription;
-
-  /// Track last handed over, so pausing the phone after a hand-over does not send it again.
-  String? _lastTrack;
+  StreamSubscription<void>? _trackSubscription;
+  Timer? _syncTimer;
+  String? _lastSentTrack;
 
   MusicAssistantPlayer? get player => _service.activePlayer.valueOrNull;
   bool get active => player != null;
 
-  /// Sends what Finamp plays to [player] and keeps doing so for anything played next.
-  Future<void> start(MusicAssistantPlayer player) async {
-    final handler = GetIt.instance<MusicPlayerBackgroundTask>();
-    final queueService = GetIt.instance<QueueService>();
-    await handler.setCastMuted(true);
-    _service.activePlayer.add(player);
-    await _send(handler, queueService);
-    await _subscription?.cancel();
-    _subscription =
-        Rx.combineLatest2<bool, String?, (bool, String?)>(
-              handler.playbackState.map((state) => state.playing).distinct(),
-              queueService.getCurrentTrackStream().map((item) => item?.baseItemId.raw).distinct(),
-              (playing, trackId) => (playing, trackId),
-            )
-            .skip(1)
-            .debounceTime(const Duration(milliseconds: 500))
-            .asyncMap((event) async {
-              final (playing, trackId) = event;
-              if (trackId != null && trackId != _lastTrack) {
-                // Something else started in Finamp (album, playlist, next...): hand it over to the player
-                await _send(handler, queueService);
-              } else if (playing) {
-                // Finamp's own play button: resume the player where it is, the phone stays silent
-                await handler.pause();
-                final target = this.player; // null once casting stopped
-                if (target != null) {
-                  try {
-                    await _service.command(target.id, "play");
-                  } catch (e) {
-                    _service.log(e);
-                  }
-                }
-              }
-            })
-            .listen((_) {});
+  MusicPlayerBackgroundTask get _handler => GetIt.instance<MusicPlayerBackgroundTask>();
+  QueueService get _queueService => GetIt.instance<QueueService>();
+
+  Future<void> start(MusicAssistantPlayer target) async {
+    await _stopListening();
+    await _handler.setCastMuted(true);
+    _service.activePlayer.add(target);
+    _handler.castForwarder = (command, args) => _service.command(target.id, command, args);
+    await _sendQueue();
+    if (!_handler.playbackState.value.playing) {
+      _handler.suppressCastForward = true;
+      try {
+        await _handler.play();
+      } finally {
+        _handler.suppressCastForward = false;
+      }
+    }
+    _trackSubscription = _queueService
+        .getCurrentTrackStream()
+        .map((item) => item?.baseItemId.raw)
+        .distinct()
+        .skip(1)
+        .asyncMap((trackId) => _onLocalTrackChanged(trackId))
+        .listen((_) {});
+    _syncTimer = Timer.periodic(const Duration(seconds: 3), (_) => _follow());
   }
 
-  Future<void> _send(MusicPlayerBackgroundTask handler, QueueService queueService) async {
+  /// The phone moved to another track: send the queue from there, unless the player already plays it.
+  Future<void> _onLocalTrackChanged(String? trackId) async {
+    final target = player;
+    if (target == null || trackId == null || trackId == _lastSentTrack) return;
+    try {
+      final now = await _service.nowPlaying(target.id);
+      if (now?.jellyfinId == trackId) {
+        _lastSentTrack = trackId;
+        return;
+      }
+    } catch (e) {
+      _service.log(e);
+    }
+    await _sendQueue();
+  }
+
+  Future<void> _sendQueue() async {
     final target = player;
     if (target == null) return;
-    final queue = queueService.getQueue();
+    final queue = _queueService.getQueue();
     final current = queue.currentTrack;
     if (current == null) return;
-    _lastTrack = current.baseItemId.raw;
-    final position = handler.playbackPosition;
-    if (handler.playbackState.value.playing) await handler.pause();
+    _lastSentTrack = current.baseItemId.raw;
+    if (current.baseItemId.raw.startsWith("ext-")) {
+      GlobalSnackbar.message((_) => GlobalSnackbar.requireL10n.musicAssistantNotInLibrary);
+      return;
+    }
     final ids = [
       current,
       ...queue.nextUp,
       ...queue.queue,
     ].map((item) => item.baseItemId.raw).where((id) => !id.startsWith("ext-")).take(300).toList();
-    if (ids.isEmpty || current.baseItemId.raw.startsWith("ext-")) {
-      GlobalSnackbar.message((_) => GlobalSnackbar.requireL10n.musicAssistantNotInLibrary);
-      return;
-    }
     try {
-      await _service.play(target.id, ids, position);
+      await _service.play(target.id, ids, _handler.playbackPosition);
     } catch (e) {
       _service.log(e);
       GlobalSnackbar.message((_) => GlobalSnackbar.requireL10n.musicAssistantError(e.toString()));
     }
   }
 
-  /// Leaves casting: the player keeps playing, the phone is no longer muted.
-  Future<void> stop() async {
-    await _subscription?.cancel();
-    _subscription = null;
-    _service.activePlayer.add(null);
-    await GetIt.instance<MusicPlayerBackgroundTask>().setCastMuted(false);
+  /// Makes the muted mirror follow the player (track, position, play state) without sending anything back.
+  Future<void> _follow() async {
+    final target = player;
+    if (target == null) return;
+    MusicAssistantNowPlaying? now;
+    try {
+      now = await _service.nowPlaying(target.id);
+    } catch (e) {
+      _service.log(e);
+      return;
+    }
+    if (now == null || player == null) return;
+    _handler.suppressCastForward = true;
+    try {
+      final queue = _queueService.getQueue();
+      final localId = queue.currentTrack?.baseItemId.raw;
+      if (now.jellyfinId != null && now.jellyfinId != localId) {
+        final upcoming = [?queue.currentTrack, ...queue.nextUp, ...queue.queue];
+        final offset = upcoming.indexWhere((item) => item.baseItemId.raw == now!.jellyfinId);
+        if (offset > 0) {
+          _lastSentTrack = now.jellyfinId;
+          await _queueService.skipByOffset(offset);
+        }
+      }
+      final drift = (_handler.playbackPosition - now.position).abs();
+      if (drift > const Duration(seconds: 3)) await _handler.seek(now.position);
+      final playing = _handler.playbackState.value.playing;
+      if (now.playing && !playing) await _handler.play();
+      if (!now.playing && playing) await _handler.pause();
+    } finally {
+      _handler.suppressCastForward = false;
+    }
   }
 
-  /// Stops the player and carries on in Finamp at the track and second it had reached.
+  Future<void> _stopListening() async {
+    await _trackSubscription?.cancel();
+    _trackSubscription = null;
+    _syncTimer?.cancel();
+    _syncTimer = null;
+    _handler.castForwarder = null;
+  }
+
+  /// Leaves casting: the player keeps playing, the phone pauses and is no longer muted.
+  Future<void> stop() async {
+    await _stopListening();
+    _service.activePlayer.add(null);
+    await _handler.pause();
+    await _handler.setCastMuted(false);
+  }
+
+  /// Stops the player and carries on in Finamp, which is already at the same track and second.
   Future<void> resumeHere() async {
     final target = player;
     if (target == null) return;
-    final now = await _service.nowPlaying(target.id);
-    await _service.command(target.id, "stop");
-    await _subscription?.cancel();
-    _subscription = null;
-    final queueService = GetIt.instance<QueueService>();
-    final handler = GetIt.instance<MusicPlayerBackgroundTask>();
-    final queue = queueService.getQueue();
-    final upcoming = [?queue.currentTrack, ...queue.nextUp, ...queue.queue];
-    final offset = now?.jellyfinId == null ? -1 : upcoming.indexWhere((item) => item.baseItemId.raw == now!.jellyfinId);
-    if (offset > 0) await queueService.skipByOffset(offset);
-    if (offset >= 0 && now != null) await handler.seek(now.position);
+    await _follow();
+    await _stopListening();
+    try {
+      await _service.command(target.id, "stop");
+    } catch (e) {
+      _service.log(e);
+    }
     _service.activePlayer.add(null);
-    await handler.setCastMuted(false);
-    await handler.play();
+    await _handler.setCastMuted(false);
+    await _handler.play();
   }
 }

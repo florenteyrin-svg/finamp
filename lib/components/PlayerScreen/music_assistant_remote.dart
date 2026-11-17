@@ -7,8 +7,8 @@ import 'package:finamp/services/music_assistant_cast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tabler_icons/flutter_tabler_icons.dart';
 
-/// While the music plays on a Music Assistant player (Apple TV...): what it plays, previous / play-pause / next,
-/// its volume, "Resume on this phone" (stops it and carries on in Finamp at the same track and second) and leaving
+/// While the music plays on a Music Assistant player (Apple TV...): which player and what it plays (Finamp's own
+/// controls drive it), its volume, "Resume on this phone" (stops it and carries on in Finamp at the same track and second) and leaving
 /// casting. Kept to one compact row so the rest of the player screen stays visible.
 class MusicAssistantRemote extends StatelessWidget {
   const MusicAssistantRemote({super.key});
@@ -117,7 +117,6 @@ class _RemoteState extends State<_Remote> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final now = _now;
-    const dense = VisualDensity.compact;
     // One compact row, so the progress bar and Finamp's own buttons stay on screen
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
@@ -155,21 +154,6 @@ class _RemoteState extends State<_Remote> {
                 ],
               ),
             ),
-            IconButton(
-              visualDensity: dense,
-              icon: const Icon(TablerIcons.player_skip_back, size: 20),
-              onPressed: () => _command("previous"),
-            ),
-            IconButton(
-              visualDensity: dense,
-              icon: Icon(now?.playing ?? true ? TablerIcons.player_pause : TablerIcons.player_play, size: 22),
-              onPressed: () => _command("play_pause"),
-            ),
-            IconButton(
-              visualDensity: dense,
-              icon: const Icon(TablerIcons.player_skip_forward, size: 20),
-              onPressed: () => _command("next"),
-            ),
             PopupMenuButton<String>(
               icon: const Icon(TablerIcons.dots_vertical, size: 20),
               onSelected: (choice) {
@@ -193,7 +177,10 @@ class _RemoteState extends State<_Remote> {
                 ),
                 PopupMenuItem(
                   value: "volume",
-                  child: ListTile(leading: const Icon(TablerIcons.volume), title: Text(l10n.outputMenuVolumeSectionTitle)),
+                  child: ListTile(
+                    leading: const Icon(TablerIcons.volume),
+                    title: Text(l10n.outputMenuVolumeSectionTitle),
+                  ),
                 ),
                 PopupMenuItem(
                   value: "stop",
