@@ -137,6 +137,29 @@ class MusicAssistantCast {
     _handler.castForwarder = null;
   }
 
+  /// Stops the player: "stop", then "pause" if it still plays (or "stop" is refused), checked each time.
+  Future<void> _stopPlayer(MusicAssistantPlayer target) async {
+    Object? lastError;
+    for (final command in ["stop", "pause", "pause"]) {
+      try {
+        await _service.command(target.id, command);
+      } catch (e) {
+        lastError = e;
+        _service.log("$command: $e");
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      try {
+        final now = await _service.nowPlaying(target.id);
+        if (now == null || !now.playing) return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    GlobalSnackbar.message(
+      (_) => GlobalSnackbar.requireL10n.musicAssistantError(lastError?.toString() ?? "${target.name} still playing"),
+    );
+  }
+
   /// Leaves casting: the player keeps playing, the phone pauses and is no longer muted.
   Future<void> stop() async {
     await _stopListening();
@@ -151,11 +174,7 @@ class MusicAssistantCast {
     if (target == null) return;
     await _follow();
     await _stopListening();
-    try {
-      await _service.command(target.id, "stop");
-    } catch (e) {
-      _service.log(e);
-    }
+    await _stopPlayer(target);
     _service.activePlayer.add(null);
     await _handler.setCastMuted(false);
     await _handler.play();
