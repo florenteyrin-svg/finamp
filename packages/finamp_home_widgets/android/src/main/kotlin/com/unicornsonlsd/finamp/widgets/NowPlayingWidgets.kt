@@ -144,7 +144,10 @@ object NowPlayingWidgets {
             }
         }
 
-        if (model == WidgetModel.VINYL) renderVinyl(views, state)
+        if (model == WidgetModel.VINYL) {
+            renderVinyl(views, state)
+            renderSpinningLabel(views, state, art)
+        }
 
         // Buttons
         views.setImageViewResource(R.id.widget_play, if (state.playing) R.drawable.widget_ic_pause else R.drawable.widget_ic_play)
@@ -161,6 +164,9 @@ object NowPlayingWidgets {
         ) {
             views.setOnClickPendingIntent(R.id.widget_skip_previous, mediaButton(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
         }
+        // Same as the player buttons in Android Auto: the whole album in order / the artist shuffled
+        views.setOnClickPendingIntent(R.id.widget_btn_album, WidgetActions.pendingIntent(context, WidgetActions.PLAY_ALBUM))
+        views.setOnClickPendingIntent(R.id.widget_btn_artist, WidgetActions.pendingIntent(context, WidgetActions.PLAY_ARTIST))
         views.setOnClickPendingIntent(R.id.widget_root, openApp(context))
         return views
     }
@@ -184,6 +190,27 @@ object NowPlayingWidgets {
         }
         // Counts up by itself while playing
         views.setChronometer(R.id.widget_elapsed, SystemClock.elapsedRealtime() - position, null, state.playing)
+    }
+
+    private val labelFrameIds = intArrayOf(
+        R.id.widget_label_0, R.id.widget_label_1, R.id.widget_label_2, R.id.widget_label_3, R.id.widget_label_4,
+        R.id.widget_label_5, R.id.widget_label_6, R.id.widget_label_7, R.id.widget_label_8, R.id.widget_label_9,
+        R.id.widget_label_10, R.id.widget_label_11, R.id.widget_label_12, R.id.widget_label_13, R.id.widget_label_14,
+        R.id.widget_label_15, R.id.widget_label_16, R.id.widget_label_17,
+    )
+
+    /**
+     * Makes the album art turn with the record: widgets cannot rotate a picture, so each frame of a ViewFlipper
+     * holds the art turned 20 degrees further, flipped every 100 ms (one turn in 1.8 s, like the grooves).
+     * Small frames keep the update under the size Android allows for a widget.
+     */
+    private fun renderSpinningLabel(views: RemoteViews, state: NowPlayingState, art: android.graphics.Bitmap?) {
+        val spinning = state.playing && art != null
+        views.setViewVisibility(R.id.widget_label_spinning, if (spinning) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_art, if (spinning) View.GONE else View.VISIBLE)
+        if (!spinning || art == null) return
+        val frames = Artwork.rotatedLabels(art, labelFrameIds.size, 88)
+        frames.forEachIndexed { i, frame -> views.setImageViewBitmap(labelFrameIds[i], frame) }
     }
 
     private fun formatTime(ms: Long): String {

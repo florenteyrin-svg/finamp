@@ -68,6 +68,20 @@ object Artwork {
         return output
     }
 
+    /** [count] copies of the art as a round label, each turned 360/[count] degrees further, [sizePx] wide. */
+    fun rotatedLabels(source: Bitmap, count: Int, sizePx: Int): List<Bitmap> {
+        val label = circle(Bitmap.createScaledBitmap(source, sizePx, sizePx, true))
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        return List(count) { i ->
+            val frame = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+            Canvas(frame).apply {
+                rotate(i * 360f / count, sizePx / 2f, sizePx / 2f)
+                drawBitmap(label, 0f, 0f, paint)
+            }
+            frame
+        }
+    }
+
     /** A dark colour taken from the art, so white text stays readable on it. */
     fun backgroundColor(art: Bitmap): Int {
         val small = Bitmap.createScaledBitmap(art, 16, 16, true)

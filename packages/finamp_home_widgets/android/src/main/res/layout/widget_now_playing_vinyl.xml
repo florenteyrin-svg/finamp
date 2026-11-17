@@ -52,6 +52,108 @@
                 android:scaleType="centerCrop"
                 android:src="@drawable/widget_ic_music" />
 
+            <!-- While playing: the label turned a bit more in each frame, flipped in step with the record
+                 (18 frames x 100 ms = one turn in 1.8 s, like the grooves) -->
+            <ViewFlipper
+                android:id="@+id/widget_label_spinning"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_gravity="center"
+                android:autoStart="true"
+                android:flipInterval="100"
+                android:visibility="gone">
+                <ImageView
+                    android:id="@+id/widget_label_0"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_1"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_2"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_3"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_4"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_5"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_6"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_7"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_8"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_9"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_10"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_11"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_12"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_13"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_14"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_15"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_16"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+                <ImageView
+                    android:id="@+id/widget_label_17"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no" />
+            </ViewFlipper>
+
             <ImageView
                 android:id="@+id/widget_tonearm"
                 android:layout_width="match_parent"
@@ -72,11 +174,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:fontFamily="serif"
+                android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
                 android:textColor="#FFFFFFFF"
-                android:textSize="17sp"
-                android:textStyle="bold" />
+                android:textSize="16sp" />
 
             <TextView
                 android:id="@+id/widget_artist"
@@ -126,6 +227,15 @@
                 android:orientation="horizontal">
 
                 <ImageButton
+                    android:id="@+id/widget_btn_album"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/widget_play_album"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/widget_ic_album" />
+                <ImageButton
                     android:id="@+id/widget_skip_previous"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
@@ -156,6 +266,15 @@
                     android:padding="9dp"
                     android:scaleType="fitCenter"
                     android:src="@drawable/widget_ic_next" />
+                <ImageButton
+                    android:id="@+id/widget_btn_artist"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/widget_play_artist"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/widget_ic_artist" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
