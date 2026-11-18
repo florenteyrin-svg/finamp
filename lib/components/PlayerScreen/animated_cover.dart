@@ -15,8 +15,8 @@ class AnimatedCover extends ConsumerWidget {
 
   final BaseItemDto track;
 
-  /// TEMPORARY: shows where the animated cover stops, until it works.
-  static const _showDiagnostic = true;
+  /// Diagnostic label (where the lookup stopped); off, kept for troubleshooting.
+  static const _showDiagnostic = false;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
