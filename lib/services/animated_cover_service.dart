@@ -108,8 +108,9 @@ class AnimatedCoverService {
     if (_viewers == 0 || path == null) return;
     final folder = folderOf(path);
     if (current.value?.folder == folder) return;
-    if (_busy && DateTime.now().difference(_busySince) < const Duration(seconds: 12)) return;
-    if (!_busy && _found.containsKey(folder) && _found[folder] == null) return; // this album has no video
+    if (_busy && DateTime.now().difference(_busySince) < const Duration(seconds: 25)) return;
+    final missing = _missingSince[folder];
+    if (!_busy && missing != null && DateTime.now().difference(missing) < const Duration(minutes: 2)) return;
     _wantedFolder = null; // start over
     _busy = false;
     unawaited(showFor(path, albumId: _lastAlbumId));
@@ -147,40 +148,76 @@ class AnimatedCoverService {
     current.value = null;
     unawaited(previous?.controller.dispose());
     try {
-      status.value = "lookup";
-      final url = await forTrackFile(trackFilePath).timeout(const Duration(seconds: 12));
-      if (generation != _generation) return;
-      if (url == null) {
-        status.value = "no video ($lastReason)";
-        return;
-      }
-      status.value = "opening";
-      // From the phone when it was kept (instant), otherwise from the server while it is kept for next time
+      // 1. Kept on the phone: plays at once, no network at all
       final cached = await _cachedFile(folder);
+      if (generation != _generation) return;
       final options = VideoPlayerOptions(mixWithOthers: true); // never take the audio focus from the music
-      final controller = cached != null
-          ? VideoPlayerController.file(cached, videoPlayerOptions: options)
-          : VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: options);
-      if (cached == null) unawaited(_download(folder, url));
-      try {
-        await controller.initialize();
-        await controller.setVolume(0);
-        await controller.setLooping(true);
-        if (_viewers > 0) await controller.play();
-        if (generation != _generation) {
-          await controller.dispose();
+      VideoPlayerController? controller;
+      if (cached != null) {
+        status.value = "opening (phone)";
+        controller = await _open(VideoPlayerController.file(cached, videoPlayerOptions: options));
+      }
+      // 2. Otherwise straight from the server (no separate lookup round trip): the album folder, then its parent
+      //    for CD/Disc folders. Kept on the phone afterwards for next time.
+      if (controller == null) {
+        final config = await settings();
+        if (!config.enabled || config.key.isEmpty) {
+          status.value = "off or no key";
           return;
         }
-        status.value = "playing ${controller.value.size.width.round()}";
-        current.value = (folder: folder, albumId: albumId, controller: controller);
-      } catch (e) {
-        status.value = "error: $e";
-        await controller.dispose();
+        final parent = folder.contains("/") ? folder.substring(0, folder.lastIndexOf("/")) : "";
+        for (final candidate in [
+          folder,
+          if (RegExp(r'/(cd|disc|disque)\s*\d+$', caseSensitive: false).hasMatch(folder)) parent,
+        ]) {
+          if (generation != _generation) return;
+          final url = _found[candidate] ?? urlFor(candidate, config.base, config.prefix, config.key);
+          status.value = "opening (server)";
+          controller = await _open(VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: options));
+          if (controller != null) {
+            _found[folder] = url;
+            _missingSince.remove(folder);
+            // kept on the phone a bit later, so it does not slow down the start of the music and the video
+            unawaited(Future<void>.delayed(const Duration(seconds: 10), () => _download(folder, url)));
+            break;
+          }
+        }
       }
+      if (controller == null) {
+        if (generation == _generation) {
+          status.value = "no video";
+          _missingSince[folder] = DateTime.now();
+        }
+        return;
+      }
+      if (generation != _generation) {
+        await controller.dispose();
+        return;
+      }
+      if (_viewers > 0) await controller.play();
+      status.value = "playing ${controller.value.size.width.round()}";
+      current.value = (folder: folder, albumId: albumId, controller: controller);
     } catch (e) {
-      if (generation == _generation) status.value = "lookup failed: $e";
+      if (generation == _generation) status.value = "failed: $e";
     } finally {
       if (generation == _generation) _busy = false;
+    }
+  }
+
+  /// Albums without a video (or not reachable) and since when: not asked again for a while.
+  final _missingSince = <String, DateTime>{};
+
+  /// Opens a video, silent and looping; null when it cannot be opened (missing on the server, network down).
+  Future<VideoPlayerController?> _open(VideoPlayerController controller) async {
+    try {
+      await controller.initialize().timeout(const Duration(seconds: 20));
+      await controller.setVolume(0);
+      await controller.setLooping(true);
+      return controller;
+    } catch (e) {
+      lastReason = "$e";
+      unawaited(controller.dispose());
+      return null;
     }
   }
 
@@ -261,7 +298,7 @@ class AnimatedCoverService {
     _preparing = true;
     queue
         .map((info) => [...?info?.nextUp, ...?info?.queue].take(3).map((item) => item.baseItem).toList())
-        .debounceTime(const Duration(seconds: 2))
+        .debounceTime(const Duration(seconds: 15))
         .asyncMap((items) async {
           if (!(await settings()).enabled) return;
           for (final item in items) {
