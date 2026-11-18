@@ -16,7 +16,7 @@ class AnimatedCover extends StatefulWidget {
   final BaseItemDto track;
 
   /// Diagnostic label (where the lookup stopped); off, kept for troubleshooting.
-  static const _showDiagnostic = true;
+  static const _showDiagnostic = false;
 
   @override
   State<AnimatedCover> createState() => _AnimatedCoverState();
