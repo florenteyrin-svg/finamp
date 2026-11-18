@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same rotation as widget_tonearm_rotating, for another arm model -->
+<rotate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/widget_tonearm_j_straight"
+    android:fromDegrees="-4"
+    android:toDegrees="26"
+    android:pivotX="90%"
+    android:pivotY="10%" />

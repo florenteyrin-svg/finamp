@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Arm resting on the record (playing) -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="120dp" android:height="120dp" android:viewportWidth="100" android:viewportHeight="100">
-    <path android:strokeColor="#FFE0E0E0" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M90,10L90,52L72,72" />
-    <path android:fillColor="#FFBDBDBD" android:pathData="M90,10m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
-    <path android:fillColor="#FFE0E0E0" android:pathData="M68.5,69.5l7,7l-5,5l-7,-7z" />
-</vector>

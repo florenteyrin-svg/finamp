@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="136dp" android:height="136dp" android:viewportWidth="100" android:viewportHeight="100">
+    <!-- S-shaped arm with a counterweight behind the pivot (turntable style) -->
+    <path android:fillColor="#FF9E9E9E" android:pathData="M85.5,0.5h9v6h-9z" />
+    <path android:strokeColor="#FFE0E0E0" android:strokeWidth="2.6" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M90,10C90,26 97,34 94,46C91,58 86,62 90,72" />
+    <path android:fillColor="#FFBDBDBD" android:pathData="M90,10m-5.5,0a5.5,5.5 0,1 1,11 0a5.5,5.5 0,1 1,-11 0" />
+    <path android:fillColor="#FF8A8A8A" android:pathData="M90,10m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#FF4A4A4A" android:pathData="M86,71l8,0l1,10l-10,0z" />
+    <path android:fillColor="#FFE0E0E0" android:pathData="M89,80h2v2h-2z" />
+</vector>
