@@ -1,3 +1,4 @@
+import 'package:finamp/screens/animated_covers_settings_screen.dart';
 import 'package:finamp/screens/music_assistant_settings_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:finamp/services/home_screen_widgets.dart';
@@ -170,6 +171,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => Navigator.of(context).pushNamed(NetworkSettingsScreen.routeName),
           ),
           if (Platform.isAndroid) const _WidgetSpectrumTile(),
+          ListTile(
+            leading: const Icon(TablerIcons.movie),
+            title: Text(AppLocalizations.of(context)!.animatedCoversTitle),
+            subtitle: Text(AppLocalizations.of(context)!.animatedCoversSubtitle),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => const AnimatedCoversSettingsScreen())),
+          ),
           ListTile(
             leading: const Icon(TablerIcons.cast),
             title: const Text("Music Assistant"),

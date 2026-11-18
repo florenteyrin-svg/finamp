@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:finamp/components/PlayerScreen/animated_cover.dart';
 import 'package:finamp/components/PlayerScreen/queue_source_helper.dart';
 import 'package:finamp/l10n/app_localizations.dart';
 import 'package:finamp/models/finamp_models.dart';
@@ -88,23 +89,33 @@ class PlayerScreenAlbumImage extends ConsumerWidget {
                   final minPadding = ref.watch(finampSettingsProvider.playerScreenCoverMinimumPadding);
                   final horizontalPadding = constraints.maxWidth * (minPadding / 100.0);
                   final verticalPadding = constraints.maxHeight * (minPadding / 100.0);
-                  return Padding(
-                    padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
-                    child: AlbumImage(
-                      imageListenable: currentAlbumImageProvider,
-                      borderRadius: BorderRadius.circular(8.0),
-                      // Load player cover at max size to allow more seamless scaling
-                      autoScale: false,
-                      decoration: BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                            blurRadius: 24,
-                            offset: const Offset(0, 4),
-                            color: Colors.black.withValues(alpha: 0.3),
+                  final track = currentTrack?.baseItem;
+                  return Stack(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
+                        child: AlbumImage(
+                          imageListenable: currentAlbumImageProvider,
+                          borderRadius: BorderRadius.circular(8.0),
+                          // Load player cover at max size to allow more seamless scaling
+                          autoScale: false,
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                blurRadius: 24,
+                                offset: const Offset(0, 4),
+                                color: Colors.black.withValues(alpha: 0.3),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                      // The album's animated cover, edge to edge over the whole cover area, when it has one
+                      if (track != null && track.albumId != null)
+                        Positioned.fill(
+                          child: AnimatedCover(key: ValueKey(track.albumId!.raw), track: track),
+                        ),
+                    ],
                   );
                 },
               ),

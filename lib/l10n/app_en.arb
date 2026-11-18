@@ -3932,5 +3932,21 @@
     "musicAssistantResumeHere": "Resume on this phone",
     "@musicAssistantResumeHere": {"description": "Music Assistant remote: Resume on this phone"},
     "musicAssistantForget": "Stop casting (keeps playing there)",
-    "@musicAssistantForget": {"description": "Music Assistant remote: Hide the remote"}
+    "@musicAssistantForget": {"description": "Music Assistant remote: Hide the remote"},
+    "animatedCoversTitle": "Animated covers",
+    "@animatedCoversTitle": {"description": "Animated covers setting: Animated covers"},
+    "animatedCoversSubtitle": "Play cover/animated.mp4 of each album on the player screen",
+    "@animatedCoversSubtitle": {"description": "Animated covers setting: Play cover/animated.mp4 of each album on the player screen"},
+    "animatedCoversDescription": "Plays the animated cover Alacarte saves next to each album (cover/animated.mp4), edge to edge on the player screen, silent and looping. nginx serves these files only, at the address below.",
+    "@animatedCoversDescription": {"description": "Animated covers setting: Plays the animated cover Alacarte saves next to each album (cover/animated.mp4), edge to edge on the player screen, silent and looping. nginx serves these files only, at the address below."},
+    "animatedCoversBase": "nginx address of the covers",
+    "@animatedCoversBase": {"description": "Animated covers setting: nginx address of the covers"},
+    "animatedCoversKey": "Secret key",
+    "@animatedCoversKey": {"description": "Animated covers setting: Secret key"},
+    "animatedCoversKeyHelper": "The same word as in the nginx rule",
+    "@animatedCoversKeyHelper": {"description": "Animated covers setting: The same word as in the nginx rule"},
+    "animatedCoversPrefix": "Music folder in Jellyfin",
+    "@animatedCoversPrefix": {"description": "Animated covers setting: Music folder in Jellyfin"},
+    "animatedCoversPrefixHelper": "The library folder shown in Jellyfin (Dashboard > Libraries), removed from the album paths",
+    "@animatedCoversPrefixHelper": {"description": "Animated covers setting: The library folder shown in Jellyfin (Dashboard > Libraries), removed from the album paths"}
 }

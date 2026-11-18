@@ -3745,5 +3745,13 @@
     "musicAssistantNotInLibrary": "Ce titre n'est pas encore dans la bibliothèque Jellyfin : ajoute-le d'abord (Apple Music)",
     "musicAssistantPlayingOn": "Lecture sur {player}",
     "musicAssistantResumeHere": "Reprendre sur le téléphone",
-    "musicAssistantForget": "Quitter la diffusion (la musique continue là-bas)"
+    "musicAssistantForget": "Quitter la diffusion (la musique continue là-bas)",
+    "animatedCoversTitle": "Pochettes animées",
+    "animatedCoversSubtitle": "Jouer cover/animated.mp4 de chaque album sur l'écran de lecture",
+    "animatedCoversDescription": "Joue la pochette animée qu'Alacarte enregistre à côté de chaque album (cover/animated.mp4), sur toute la largeur de l'écran de lecture, sans son et en boucle. nginx sert uniquement ces fichiers, à l'adresse ci-dessous.",
+    "animatedCoversBase": "Adresse nginx des pochettes",
+    "animatedCoversKey": "Clé secrète",
+    "animatedCoversKeyHelper": "Le même mot que dans la règle nginx",
+    "animatedCoversPrefix": "Dossier de la musique dans Jellyfin",
+    "animatedCoversPrefixHelper": "Le dossier de la médiathèque affiché dans Jellyfin (Tableau de bord > Médiathèques), retiré du chemin des albums"
 }
