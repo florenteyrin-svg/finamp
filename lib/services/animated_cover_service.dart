@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
@@ -30,6 +31,9 @@ class AnimatedCoverService {
 
   /// Why the last lookup found no video (diagnostic).
   String lastReason = "";
+
+  /// Current step of the lookup (diagnostic, shown on the cover while testing).
+  final step = ValueNotifier<String>("");
   final _found = <String, String?>{};
   final _inFlight = <String, Future<String?>>{};
 
@@ -64,6 +68,7 @@ class AnimatedCoverService {
   }
 
   Future<String?> _lookup(BaseItemId albumId) async {
+    step.value = "settings";
     final config = await settings();
     if (!config.enabled || config.key.isEmpty) {
       lastReason = "off or no key";
@@ -83,11 +88,14 @@ class AnimatedCoverService {
   /// Builds the address of [albumId]'s video and asks the server for it: for the settings' test button too.
   Future<({String? path, String? url, int? status, bool found})> check(BaseItemId albumId) async {
     final config = await settings();
-    final album = await GetIt.instance<JellyfinApiHelper>().getItemById(albumId);
+    step.value = "jellyfin";
+    final album = await GetIt.instance<JellyfinApiHelper>().getItemById(albumId).timeout(const Duration(seconds: 10));
     final path = album.path;
     if (path == null) return (path: null, url: null, status: null, found: false);
     final url = urlFor(path, config.base, config.prefix, config.key);
-    final response = await _client.head(Uri.parse(url)).timeout(const Duration(seconds: 8));
+    step.value = "server";
+    final response = await _client.head(Uri.parse(url)).timeout(const Duration(seconds: 10));
+    step.value = "done";
     return (path: path, url: url, status: response.statusCode, found: response.statusCode == 200);
   }
 

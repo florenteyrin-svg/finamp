@@ -77,7 +77,11 @@ class _AnimatedCoverState extends State<AnimatedCover> {
         margin: const EdgeInsets.all(6),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         color: Colors.black54,
-        child: Text("AC: $_status", style: const TextStyle(color: Colors.white, fontSize: 10)),
+        child: ValueListenableBuilder<String>(
+          valueListenable: AnimatedCoverService.instance.step,
+          builder: (context, step, _) =>
+              Text("AC: $_status [$step]", style: const TextStyle(color: Colors.white, fontSize: 10)),
+        ),
       ),
     );
     if (controller == null || !_ready) return IgnorePointer(child: debug);
