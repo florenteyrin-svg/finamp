@@ -175,12 +175,14 @@ object NowPlayingWidgets {
     private fun renderVinyl(context: Context, views: RemoteViews, state: NowPlayingState) {
         views.setViewVisibility(R.id.widget_vinyl_spinning, if (state.playing) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_vinyl_still, if (state.playing) View.GONE else View.VISIBLE)
-        views.setImageViewResource(
-            R.id.widget_tonearm,
-            if (state.playing) R.drawable.widget_tonearm_on else R.drawable.widget_tonearm_off,
-        )
         val duration = state.durationMs
         val position = state.currentPositionMs().coerceAtLeast(0)
+        // The arm follows the track: outer edge at the start, next to the label at the end; resting when paused.
+        // Angles for a 70-long arm pivoting at (90,10) over a record of radius 50 centred at (50,50).
+        val progress = if (duration != null && duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
+        val angle = if (state.playing && state.title != null) 4f + (24.6f - 4f) * progress else -4f
+        views.setImageViewResource(R.id.widget_tonearm, R.drawable.widget_tonearm_rotating)
+        views.setInt(R.id.widget_tonearm, "setImageLevel", ((angle + 4f) / 30f * 10000).toInt().coerceIn(0, 10000))
         if (duration != null && duration > 0) {
             views.setProgressBar(R.id.widget_progress, 1000, (position * 1000 / duration).toInt().coerceIn(0, 1000), false)
             views.setTextViewText(R.id.widget_duration, formatTime(duration))

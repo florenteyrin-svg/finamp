@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tonearm pointing straight down from its pivot (90,10); turned by widget_tonearm_rotating -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="136dp" android:height="136dp" android:viewportWidth="100" android:viewportHeight="100">
+    <path android:strokeColor="#FFE0E0E0" android:strokeWidth="2.6" android:strokeLineCap="round"
+        android:pathData="M90,10L90,74" />
+    <path android:fillColor="#FFBDBDBD" android:pathData="M90,10m-5.5,0a5.5,5.5 0,1 1,11 0a5.5,5.5 0,1 1,-11 0" />
+    <path android:fillColor="#FF8A8A8A" android:pathData="M90,10m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#FFE0E0E0" android:pathData="M86.5,72h7v9h-7z" />
+</vector>
