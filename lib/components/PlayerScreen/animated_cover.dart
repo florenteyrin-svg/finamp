@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:finamp/models/jellyfin_models.dart';
 import 'package:finamp/services/animated_cover_service.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +16,7 @@ class AnimatedCover extends StatefulWidget {
   final BaseItemDto track;
 
   /// Diagnostic label (where the lookup stopped); off, kept for troubleshooting.
-  static const _showDiagnostic = false;
+  static const _showDiagnostic = true;
 
   @override
   State<AnimatedCover> createState() => _AnimatedCoverState();
@@ -23,14 +25,35 @@ class AnimatedCover extends StatefulWidget {
 class _AnimatedCoverState extends State<AnimatedCover> {
   final service = AnimatedCoverService.instance;
 
+  /// Bumped shortly after a video arrives while this cover is already on screen, so the video surface is created
+  /// again (it may otherwise stay blank until the player is reopened).
+  int _surface = 0;
+  final _timers = <Timer>[];
+
   @override
   void initState() {
     super.initState();
     service.attach();
+    service.current.addListener(_onVideo);
+  }
+
+  void _onVideo() {
+    if (service.current.value == null) return;
+    for (final delay in const [300, 1200]) {
+      _timers.add(
+        Timer(Duration(milliseconds: delay), () {
+          if (mounted) setState(() => _surface++);
+        }),
+      );
+    }
   }
 
   @override
   void dispose() {
+    for (final timer in _timers) {
+      timer.cancel();
+    }
+    service.current.removeListener(_onVideo);
     service.detach();
     super.dispose();
   }
@@ -64,7 +87,7 @@ class _AnimatedCoverState extends State<AnimatedCover> {
                         child: SizedBox(
                           width: controller.value.size.width,
                           height: controller.value.size.height,
-                          child: VideoPlayer(controller),
+                          child: VideoPlayer(controller, key: ValueKey(_surface)),
                         ),
                       ),
                     ),
@@ -85,14 +108,24 @@ class _AnimatedCoverState extends State<AnimatedCover> {
           ),
           if (showDiagnostic)
             Align(
-              alignment: Alignment.bottomRight,
+              alignment: Alignment.topLeft,
               child: ValueListenableBuilder(
                 valueListenable: service.status,
-                builder: (context, status, _) => Container(
-                  margin: const EdgeInsets.all(6),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  color: Colors.black54,
-                  child: Text("AC: $status", style: const TextStyle(color: Colors.white, fontSize: 10)),
+                builder: (context, status, _) => ValueListenableBuilder(
+                  valueListenable: service.current,
+                  builder: (context, current, _) {
+                    final same = current == null ? "-" : (current.albumId == albumId ? "ok" : "≠");
+                    final position = current?.controller.value.position.inMilliseconds ?? 0;
+                    return Container(
+                      margin: const EdgeInsets.all(6),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      color: Colors.black54,
+                      child: Text(
+                        "AC: $status · album $same · s$_surface · ${current?.controller.value.isPlaying ?? false ? "▶" : "Ⅱ"} $position",
+                        style: const TextStyle(color: Colors.white, fontSize: 10),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
