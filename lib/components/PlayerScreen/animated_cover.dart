@@ -55,33 +55,34 @@ class _AnimatedCoverState extends State<AnimatedCover> {
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
-    // Apple Music style: edge to edge, fading out at the bottom into the screen behind the title and controls
+    if (controller == null || !_ready) return const SizedBox.shrink();
+    // Apple Music style: edge to edge, with a dark gradient at the bottom towards the title and controls.
+    // (No ShaderMask / Opacity over the video: with some renderers they leave the video texture invisible.)
     return IgnorePointer(
-      child: AnimatedOpacity(
-        opacity: _ready ? 1 : 0,
-        duration: const Duration(milliseconds: 600),
-        child: controller == null || !_ready
-            ? const SizedBox.expand()
-            : ShaderMask(
-                blendMode: BlendMode.dstIn,
-                shaderCallback: (bounds) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.white, Colors.white, Colors.transparent],
-                  stops: [0, 0.72, 1],
-                ).createShader(bounds),
-                child: SizedBox.expand(
-                  child: FittedBox(
-                    fit: BoxFit.cover,
-                    clipBehavior: Clip.hardEdge,
-                    child: SizedBox(
-                      width: controller.value.size.width,
-                      height: controller.value.size.height,
-                      child: VideoPlayer(controller),
-                    ),
-                  ),
-                ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRect(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: controller.value.size.width,
+                height: controller.value.size.height,
+                child: VideoPlayer(controller),
               ),
+            ),
+          ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Colors.transparent, Color(0xCC000000)],
+                stops: [0, 0.65, 1],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
