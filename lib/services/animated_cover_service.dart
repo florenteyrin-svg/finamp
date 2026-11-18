@@ -1,4 +1,13 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as path_helper;
+import 'package:path_provider/path_provider.dart';
+import 'package:rxdart/rxdart.dart';
+
+import '../models/finamp_models.dart';
+import 'metadata_provider.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
@@ -87,11 +96,13 @@ class AnimatedCoverService {
       return;
     }
     status.value = "opening";
-    final controller = VideoPlayerController.networkUrl(
-      Uri.parse(url),
-      // never take the audio focus from the music
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-    );
+    // From the phone when it was kept (instant), otherwise from the server while it is kept for next time
+    final cached = await _cachedFile(folder);
+    final options = VideoPlayerOptions(mixWithOthers: true); // never take the audio focus from the music
+    final controller = cached != null
+        ? VideoPlayerController.file(cached, videoPlayerOptions: options)
+        : VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: options);
+    if (cached == null) unawaited(_download(folder, url));
     try {
       await controller.initialize();
       await controller.setVolume(0);
@@ -107,6 +118,95 @@ class AnimatedCoverService {
       status.value = "error: $e";
       await controller.dispose();
     }
+  }
+
+  // ---- videos kept on the phone, and prepared ahead for the next tracks ----
+
+  static const _maxCacheBytes = 600 * 1024 * 1024;
+  final _downloading = <String>{};
+
+  /// Stable file name for an album folder (FNV-1a 64-bit of the folder path).
+  static String _nameFor(String folder) {
+    var hash = 0xcbf29ce484222325;
+    for (final unit in folder.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF;
+    }
+    return "${hash.toUnsigned(64).toRadixString(16)}.mp4";
+  }
+
+  Future<Directory> _cacheDir() async {
+    final dir = Directory(path_helper.join((await getApplicationCacheDirectory()).path, "animated_covers"));
+    if (!dir.existsSync()) await dir.create(recursive: true);
+    return dir;
+  }
+
+  Future<File?> _cachedFile(String folder) async {
+    final file = File(path_helper.join((await _cacheDir()).path, _nameFor(folder)));
+    if (!file.existsSync() || file.lengthSync() == 0) return null;
+    unawaited(file.setLastModified(DateTime.now()).catchError((Object _) {})); // most recently used
+    return file;
+  }
+
+  /// Keeps the video of [folder] on the phone, then trims the oldest ones above [_maxCacheBytes].
+  Future<void> _download(String folder, String url) async {
+    if (!_downloading.add(folder)) return;
+    try {
+      final dir = await _cacheDir();
+      final file = File(path_helper.join(dir.path, _nameFor(folder)));
+      if (file.existsSync()) return;
+      final response = await _client.get(Uri.parse(url)).timeout(const Duration(minutes: 2));
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) return;
+      final partial = File("${file.path}.part");
+      await partial.writeAsBytes(response.bodyBytes, flush: true);
+      await partial.rename(file.path);
+      final files = dir.listSync().whereType<File>().where((f) => f.path.endsWith(".mp4")).toList()
+        ..sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+      var total = 0;
+      for (final f in files) {
+        total += f.lengthSync();
+        if (total > _maxCacheBytes) await f.delete();
+      }
+    } catch (e) {
+      _logger.fine("Could not keep the animated cover of $folder: $e");
+    } finally {
+      _downloading.remove(folder);
+    }
+  }
+
+  /// Prepares (finds and keeps on the phone) the animated cover of an upcoming track's album.
+  Future<void> prepare(String trackFilePath) async {
+    final folder = folderOf(trackFilePath);
+    if (folder.isEmpty || await _cachedFile(folder) != null) return;
+    final url = await forTrackFile(trackFilePath);
+    if (url != null) await _download(folder, url);
+  }
+
+  bool _preparing = false;
+
+  /// Prepares the animated covers of the next tracks whenever the queue changes, so the cover moves as soon as a
+  /// new album starts.
+  void startPreparing(Stream<FinampQueueInfo?> queue) {
+    if (_preparing) return;
+    _preparing = true;
+    queue
+        .map((info) => [...?info?.nextUp, ...?info?.queue].take(3).map((item) => item.baseItem).toList())
+        .debounceTime(const Duration(seconds: 2))
+        .asyncMap((items) async {
+          if (!(await settings()).enabled) return;
+          for (final item in items) {
+            try {
+              final metadata = await GetIt.instance<ProviderContainer>()
+                  .read(metadataProvider(item).future)
+                  .timeout(const Duration(seconds: 20));
+              final path = metadata?.mediaSourceInfo.path;
+              if (path != null && path.isNotEmpty) await prepare(path);
+            } catch (e) {
+              _logger.fine("Could not prepare the animated cover of ${item.name}: $e");
+            }
+          }
+        })
+        .listen((_) {});
   }
 
   /// The video for the album folder of the track file at [trackFilePath] (from the playback info Finamp already

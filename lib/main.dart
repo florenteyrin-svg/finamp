@@ -35,6 +35,7 @@ import 'package:finamp/screens/queue_restore_screen.dart';
 import 'package:finamp/screens/quick_settings_screen.dart';
 import 'package:finamp/services/album_image_provider.dart';
 import 'package:finamp/services/android_auto_helper.dart';
+import 'package:finamp/services/animated_cover_service.dart';
 import 'package:finamp/services/audio_service_smtc.dart';
 import 'package:finamp/services/carplay_helper.dart';
 import 'package:finamp/services/client_certificate_installer.dart';
@@ -492,6 +493,8 @@ Future<void> _setupPlaybackServices() async {
   GetIt.instance.registerSingleton(queueService);
   audioHandler.onQueueServiceAvailable(); // breaking circular dependency
   unawaited(NowPlayingQuality.start(audioHandler));
+  // Animated covers of the next tracks are prepared ahead, so they show as soon as their album starts
+  AnimatedCoverService.instance.startPreparing(queueService.getQueueStream());
   HomeScreenWidgets.start(
     mediaItem: audioHandler.mediaItem,
     playbackState: audioHandler.playbackState,
