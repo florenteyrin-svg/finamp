@@ -1,8 +1,6 @@
 import 'package:finamp/models/jellyfin_models.dart';
 import 'package:finamp/services/animated_cover_service.dart';
-import 'package:finamp/services/current_track_metadata_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 /// The album's animated cover (saved by Alacarte on the server), silent and looping, edge to edge over the
@@ -10,7 +8,7 @@ import 'package:video_player/video_player.dart';
 ///
 /// The video itself lives in [AnimatedCoverService.current]; this widget only asks for it (from the track's file
 /// path, known once its playback info is loaded) and shows it.
-class AnimatedCover extends ConsumerWidget {
+class AnimatedCover extends StatefulWidget {
   const AnimatedCover({super.key, required this.track});
 
   final BaseItemDto track;
@@ -19,14 +17,28 @@ class AnimatedCover extends ConsumerWidget {
   static const _showDiagnostic = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final service = AnimatedCoverService.instance;
-    final metadata = ref.watch(currentTrackMetadataProvider).valueOrNull;
-    final path = metadata != null && metadata.item.id == track.id ? metadata.mediaSourceInfo.path : null;
-    if (path != null && path.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => service.showFor(path));
-    }
-    final folder = path == null ? null : AnimatedCoverService.folderOf(path);
+  State<AnimatedCover> createState() => _AnimatedCoverState();
+}
+
+class _AnimatedCoverState extends State<AnimatedCover> {
+  final service = AnimatedCoverService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    service.attach();
+  }
+
+  @override
+  void dispose() {
+    service.detach();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const showDiagnostic = AnimatedCover._showDiagnostic;
+    final albumId = widget.track.albumId?.raw;
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
@@ -34,7 +46,7 @@ class AnimatedCover extends ConsumerWidget {
           ValueListenableBuilder(
             valueListenable: service.current,
             builder: (context, current, _) {
-              if (current == null || current.folder != folder) return const SizedBox.shrink();
+              if (current == null || current.albumId != albumId) return const SizedBox.shrink();
               final controller = current.controller;
               // Fades in over the still cover when the video starts (Apple Music style)
               return TweenAnimationBuilder<double>(
@@ -71,7 +83,7 @@ class AnimatedCover extends ConsumerWidget {
               );
             },
           ),
-          if (_showDiagnostic)
+          if (showDiagnostic)
             Align(
               alignment: Alignment.bottomRight,
               child: ValueListenableBuilder(
@@ -80,10 +92,7 @@ class AnimatedCover extends ConsumerWidget {
                   margin: const EdgeInsets.all(6),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   color: Colors.black54,
-                  child: Text(
-                    "AC: ${path == null ? "waiting for track info" : status}",
-                    style: const TextStyle(color: Colors.white, fontSize: 10),
-                  ),
+                  child: Text("AC: $status", style: const TextStyle(color: Colors.white, fontSize: 10)),
                 ),
               ),
             ),

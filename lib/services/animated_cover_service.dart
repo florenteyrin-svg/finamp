@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../models/finamp_models.dart';
+import 'current_track_metadata_provider.dart';
 import 'metadata_provider.dart';
 
 import 'package:flutter/foundation.dart';
@@ -68,11 +69,14 @@ class AnimatedCoverService {
 
   /// The video playing for the current album, kept here (not in the cover widget, which the player screen may
   /// rebuild or recreate at any time) so it survives those rebuilds.
-  final current = ValueNotifier<({String folder, VideoPlayerController controller})?>(null);
+  final current = ValueNotifier<({String folder, String albumId, VideoPlayerController controller})?>(null);
 
-  /// Diagnostic status of [showFor] (shown on the cover while testing).
+  /// Where the last request stopped (shown by the diagnostic label).
   final status = ValueNotifier<String>("");
   String? _wantedFolder;
+  int _generation = 0;
+  bool _busy = false;
+  int _viewers = 0;
 
   static String folderOf(String trackFilePath) {
     final normalized = trackFilePath.replaceAll("\\", "/");
@@ -80,43 +84,79 @@ class AnimatedCoverService {
     return slash <= 0 ? "" : normalized.substring(0, slash);
   }
 
-  /// Loads and plays (silent, looping) the animated cover of the album of [trackFilePath], once per album.
-  Future<void> showFor(String trackFilePath) async {
+  /// Follows the playing track from app start, so the video is found and ready before the player is even opened.
+  void followCurrentTrack(ProviderContainer container) {
+    container.listen<AsyncValue<MetadataProvider?>>(currentTrackMetadataProvider, (_, next) {
+      final metadata = next.valueOrNull;
+      final path = metadata?.mediaSourceInfo.path;
+      if (metadata != null && path != null && path.isNotEmpty) {
+        unawaited(showFor(path, albumId: metadata.item.albumId?.raw ?? ""));
+      }
+    }, fireImmediately: true);
+  }
+
+  /// A cover is on screen: the video plays only while one is (no decoding for nothing in the background).
+  void attach() {
+    _viewers++;
+    unawaited(current.value?.controller.play());
+  }
+
+  void detach() {
+    _viewers = (_viewers - 1).clamp(0, 1 << 30);
+    if (_viewers == 0) unawaited(current.value?.controller.pause());
+  }
+
+  /// Prepares and starts the video of the album of the track file at [trackFilePath].
+  Future<void> showFor(String trackFilePath, {required String albumId}) async {
     final folder = folderOf(trackFilePath);
-    if (folder.isEmpty || folder == _wantedFolder) return;
+    if (folder.isEmpty) return;
+    // Already shown, or being prepared: nothing to do. A failed attempt is retried.
+    if (folder == _wantedFolder && (_busy || current.value?.folder == folder)) {
+      final shown = current.value;
+      if (shown != null && shown.albumId != albumId && albumId.isNotEmpty) {
+        current.value = (folder: folder, albumId: albumId, controller: shown.controller);
+      }
+      return;
+    }
+    final generation = ++_generation;
     _wantedFolder = folder;
+    _busy = true;
     final previous = current.value;
     current.value = null;
     unawaited(previous?.controller.dispose());
-    status.value = "lookup";
-    final url = await forTrackFile(trackFilePath);
-    if (_wantedFolder != folder) return;
-    if (url == null) {
-      status.value = "no video ($lastReason)";
-      return;
-    }
-    status.value = "opening";
-    // From the phone when it was kept (instant), otherwise from the server while it is kept for next time
-    final cached = await _cachedFile(folder);
-    final options = VideoPlayerOptions(mixWithOthers: true); // never take the audio focus from the music
-    final controller = cached != null
-        ? VideoPlayerController.file(cached, videoPlayerOptions: options)
-        : VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: options);
-    if (cached == null) unawaited(_download(folder, url));
     try {
-      await controller.initialize();
-      await controller.setVolume(0);
-      await controller.setLooping(true);
-      await controller.play();
-      if (_wantedFolder != folder) {
-        await controller.dispose();
+      status.value = "lookup";
+      final url = await forTrackFile(trackFilePath);
+      if (generation != _generation) return;
+      if (url == null) {
+        status.value = "no video ($lastReason)";
         return;
       }
-      status.value = "playing ${controller.value.size.width.round()}";
-      current.value = (folder: folder, controller: controller);
-    } catch (e) {
-      status.value = "error: $e";
-      await controller.dispose();
+      status.value = "opening";
+      // From the phone when it was kept (instant), otherwise from the server while it is kept for next time
+      final cached = await _cachedFile(folder);
+      final options = VideoPlayerOptions(mixWithOthers: true); // never take the audio focus from the music
+      final controller = cached != null
+          ? VideoPlayerController.file(cached, videoPlayerOptions: options)
+          : VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: options);
+      if (cached == null) unawaited(_download(folder, url));
+      try {
+        await controller.initialize();
+        await controller.setVolume(0);
+        await controller.setLooping(true);
+        if (_viewers > 0) await controller.play();
+        if (generation != _generation) {
+          await controller.dispose();
+          return;
+        }
+        status.value = "playing ${controller.value.size.width.round()}";
+        current.value = (folder: folder, albumId: albumId, controller: controller);
+      } catch (e) {
+        status.value = "error: $e";
+        await controller.dispose();
+      }
+    } finally {
+      if (generation == _generation) _busy = false;
     }
   }
 

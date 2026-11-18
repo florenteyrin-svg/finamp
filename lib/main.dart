@@ -495,6 +495,7 @@ Future<void> _setupPlaybackServices() async {
   unawaited(NowPlayingQuality.start(audioHandler));
   // Animated covers of the next tracks are prepared ahead, so they show as soon as their album starts
   AnimatedCoverService.instance.startPreparing(queueService.getQueueStream());
+  AnimatedCoverService.instance.followCurrentTrack(GetIt.instance<ProviderContainer>());
   HomeScreenWidgets.start(
     mediaItem: audioHandler.mediaItem,
     playbackState: audioHandler.playbackState,
