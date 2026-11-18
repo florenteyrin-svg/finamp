@@ -27,6 +27,9 @@ class AnimatedCoverService {
   static const defaultPrefix = "/Flac";
 
   final _client = http.Client();
+
+  /// Why the last lookup found no video (diagnostic).
+  String lastReason = "";
   final _found = <String, String?>{};
   final _inFlight = <String, Future<String?>>{};
 
@@ -52,19 +55,27 @@ class AnimatedCoverService {
   /// The video of [track]'s album, or null when there is none (or the feature is off).
   Future<String?> forTrack(BaseItemDto track) async {
     final albumId = track.albumId;
-    if (albumId == null || albumId.raw.startsWith("ext-")) return null;
+    if (albumId == null || albumId.raw.startsWith("ext-")) {
+      lastReason = "no library album";
+      return null;
+    }
     if (_found.containsKey(albumId.raw)) return _found[albumId.raw];
     return _inFlight[albumId.raw] ??= _lookup(albumId).whenComplete(() => _inFlight.remove(albumId.raw));
   }
 
   Future<String?> _lookup(BaseItemId albumId) async {
     final config = await settings();
-    if (!config.enabled || config.key.isEmpty) return null;
+    if (!config.enabled || config.key.isEmpty) {
+      lastReason = "off or no key";
+      return null;
+    }
     try {
       final result = await check(albumId);
+      lastReason = "HTTP ${result.status}";
       return _remember(albumId, result.found ? result.url : null);
     } catch (e) {
       _logger.fine("No animated cover for $albumId: $e");
+      lastReason = "$e";
       return null; // try again next time
     }
   }

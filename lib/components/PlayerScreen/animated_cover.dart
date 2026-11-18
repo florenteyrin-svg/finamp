@@ -19,6 +19,13 @@ class _AnimatedCoverState extends State<AnimatedCover> {
   VideoPlayerController? _controller;
   bool _ready = false;
 
+  /// TEMPORARY diagnostic shown in a corner, to see where the animated cover stops.
+  String _status = "…";
+
+  void _setStatus(String status) {
+    if (mounted) setState(() => _status = status);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -26,8 +33,14 @@ class _AnimatedCoverState extends State<AnimatedCover> {
   }
 
   Future<void> _load() async {
+    _setStatus("lookup ${widget.track.albumId?.raw.substring(0, 6) ?? "no album id"}");
     final url = await AnimatedCoverService.instance.forTrack(widget.track);
-    if (url == null || !mounted) return;
+    if (!mounted) return;
+    if (url == null) {
+      _setStatus("no video (${AnimatedCoverService.instance.lastReason})");
+      return;
+    }
+    _setStatus("found, opening");
     final controller = VideoPlayerController.networkUrl(
       Uri.parse(url),
       // never take the audio focus from the music
@@ -36,11 +49,14 @@ class _AnimatedCoverState extends State<AnimatedCover> {
     _controller = controller;
     try {
       await controller.initialize();
+      _setStatus("opened ${controller.value.size.width.round()}");
       await controller.setVolume(0);
       await controller.setLooping(true);
       await controller.play();
+      _setStatus("playing");
       if (mounted) setState(() => _ready = true);
     } catch (e) {
+      _setStatus("error: $e");
       // the normal cover stays
       Logger("AnimatedCover").warning("Could not play the animated cover $url: $e");
     }
@@ -55,7 +71,16 @@ class _AnimatedCoverState extends State<AnimatedCover> {
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
-    if (controller == null || !_ready) return const SizedBox.shrink();
+    final debug = Align(
+      alignment: Alignment.bottomRight,
+      child: Container(
+        margin: const EdgeInsets.all(6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        color: Colors.black54,
+        child: Text("AC: $_status", style: const TextStyle(color: Colors.white, fontSize: 10)),
+      ),
+    );
+    if (controller == null || !_ready) return IgnorePointer(child: debug);
     // Apple Music style: edge to edge, with a dark gradient at the bottom towards the title and controls.
     // (No ShaderMask / Opacity over the video: with some renderers they leave the video texture invisible.)
     return IgnorePointer(
@@ -82,6 +107,7 @@ class _AnimatedCoverState extends State<AnimatedCover> {
               ),
             ),
           ),
+          debug,
         ],
       ),
     );
