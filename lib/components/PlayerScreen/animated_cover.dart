@@ -1,6 +1,7 @@
 import 'package:finamp/models/jellyfin_models.dart';
 import 'package:finamp/services/animated_cover_service.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:video_player/video_player.dart';
 
 /// The album's animated cover (saved by Alacarte on the server), silent and looping, over the normal cover once
@@ -39,8 +40,9 @@ class _AnimatedCoverState extends State<AnimatedCover> {
       await controller.setLooping(true);
       await controller.play();
       if (mounted) setState(() => _ready = true);
-    } catch (_) {
-      // no video: the normal cover stays
+    } catch (e) {
+      // the normal cover stays
+      Logger("AnimatedCover").warning("Could not play the animated cover $url: $e");
     }
   }
 

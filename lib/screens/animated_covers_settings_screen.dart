@@ -4,6 +4,7 @@ import 'package:finamp/services/animated_cover_service.dart';
 import 'package:finamp/services/queue_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:video_player/video_player.dart';
 
 /// Animated covers saved by Alacarte next to each album (cover/animated.mp4), served by nginx.
 class AnimatedCoversSettingsScreen extends StatefulWidget {
@@ -38,6 +39,7 @@ class _AnimatedCoversSettingsScreenState extends State<AnimatedCoversSettingsScr
         "Jellyfin : ${check.path ?? l10n.animatedCoversTestNoPath}",
         if (check.url != null) "URL : ${check.url}",
         if (check.status != null) "HTTP ${check.status} → ${check.found ? "✓" : "✗"}",
+        if (check.found && check.url != null) await _tryPlaying(check.url!),
       ].join("\n");
     } catch (e) {
       result = "✗ $e";
@@ -62,6 +64,23 @@ class _AnimatedCoversSettingsScreenState extends State<AnimatedCoversSettingsScr
         _prefix.text = config.prefix;
       });
     });
+  }
+
+  /// Opens the video like the player screen does, to show its size or the player's error.
+  Future<String> _tryPlaying(String url) async {
+    final controller = VideoPlayerController.networkUrl(
+      Uri.parse(url),
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
+    try {
+      await controller.initialize().timeout(const Duration(seconds: 20));
+      final size = controller.value.size;
+      return "Video : ✓ ${size.width.round()}×${size.height.round()}, ${controller.value.duration.inSeconds} s";
+    } catch (e) {
+      return "Video : ✗ $e";
+    } finally {
+      await controller.dispose();
+    }
   }
 
   @override
