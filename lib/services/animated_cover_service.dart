@@ -56,6 +56,47 @@ class AnimatedCoverService {
     _found.clear();
   }
 
+  /// The video for the album folder of the track file at [trackFilePath] (from the playback info Finamp already
+  /// has), or null. No call to Jellyfin: its folder is the album's, its parent too for "CD 1" style folders.
+  Future<String?> forTrackFile(String trackFilePath) async {
+    final normalized = trackFilePath.replaceAll("\\", "/");
+    final folder = normalized.substring(0, normalized.lastIndexOf("/").clamp(0, normalized.length));
+    if (folder.isEmpty) return null;
+    if (_found.containsKey(folder)) return _found[folder];
+    return _inFlight[folder] ??= _lookupFolder(folder).whenComplete(() => _inFlight.remove(folder));
+  }
+
+  Future<String?> _lookupFolder(String folder) async {
+    final config = await settings();
+    if (!config.enabled || config.key.isEmpty) {
+      lastReason = "off or no key";
+      return null;
+    }
+    final parent = folder.contains("/") ? folder.substring(0, folder.lastIndexOf("/")) : "";
+    try {
+      for (final candidate in [
+        folder,
+        if (RegExp(r'/(cd|disc|disque)\s*\d+$', caseSensitive: false).hasMatch(folder)) parent,
+      ]) {
+        final url = urlFor(candidate, config.base, config.prefix, config.key);
+        step.value = "server";
+        final response = await _client.head(Uri.parse(url)).timeout(const Duration(seconds: 10));
+        lastReason = "HTTP ${response.statusCode}";
+        if (response.statusCode == 200) {
+          step.value = "done";
+          _found[folder] = url;
+          return url;
+        }
+      }
+      step.value = "done";
+      _found[folder] = null;
+      return null;
+    } catch (e) {
+      lastReason = "$e";
+      return null; // try again next time
+    }
+  }
+
   /// The video of [track]'s album, or null when there is none (or the feature is off).
   Future<String?> forTrack(BaseItemDto track) async {
     final albumId = track.albumId;

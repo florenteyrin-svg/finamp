@@ -1,40 +1,53 @@
 import 'package:finamp/models/jellyfin_models.dart';
 import 'package:finamp/services/animated_cover_service.dart';
+import 'package:finamp/services/current_track_metadata_provider.dart';
+import 'package:finamp/services/metadata_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:video_player/video_player.dart';
 
 /// The album's animated cover (saved by Alacarte on the server), silent and looping, over the normal cover once
 /// it plays (nothing is shown when the album has none).
-class AnimatedCover extends StatefulWidget {
+class AnimatedCover extends ConsumerStatefulWidget {
   const AnimatedCover({super.key, required this.track});
 
   final BaseItemDto track;
 
   @override
-  State<AnimatedCover> createState() => _AnimatedCoverState();
+  ConsumerState<AnimatedCover> createState() => _AnimatedCoverState();
 }
 
-class _AnimatedCoverState extends State<AnimatedCover> {
+class _AnimatedCoverState extends ConsumerState<AnimatedCover> {
   VideoPlayerController? _controller;
   bool _ready = false;
 
   /// TEMPORARY diagnostic shown in a corner, to see where the animated cover stops.
-  String _status = "…";
+  String _status = "waiting for track info";
 
   void _setStatus(String status) {
-    if (mounted) setState(() => _status = status);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _status = status);
+    });
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
+  bool _started = false;
+
+  /// Starts once the playback info of this track (with its file path) is known.
+  void _maybeStart(MetadataProvider? metadata) {
+    if (_started || metadata == null || metadata.item.id != widget.track.id) return;
+    final path = metadata.mediaSourceInfo.path;
+    if (path == null || path.isEmpty) {
+      _setStatus("no file path");
+      return;
+    }
+    _started = true;
+    _load(path);
   }
 
-  Future<void> _load() async {
-    _setStatus("lookup ${widget.track.albumId?.raw.substring(0, 6) ?? "no album id"}");
-    final url = await AnimatedCoverService.instance.forTrack(widget.track);
+  Future<void> _load(String trackFilePath) async {
+    _setStatus("lookup");
+    final url = await AnimatedCoverService.instance.forTrackFile(trackFilePath);
     if (!mounted) return;
     if (url == null) {
       _setStatus("no video (${AnimatedCoverService.instance.lastReason})");
@@ -70,6 +83,7 @@ class _AnimatedCoverState extends State<AnimatedCover> {
 
   @override
   Widget build(BuildContext context) {
+    _maybeStart(ref.watch(currentTrackMetadataProvider).valueOrNull);
     final controller = _controller;
     final debug = Align(
       alignment: Alignment.bottomRight,
