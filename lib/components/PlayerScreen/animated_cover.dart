@@ -121,7 +121,7 @@ class _AnimatedCoverState extends State<AnimatedCover> {
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       color: Colors.black54,
                       child: Text(
-                        "AC: $status · album $same · s$_surface · ${current?.controller.value.isPlaying ?? false ? "▶" : "Ⅱ"} $position",
+                        "AC: $status/${service.step.value} · album $same · s$_surface · ${current?.controller.value.isPlaying ?? false ? "▶" : "Ⅱ"} $position",
                         style: const TextStyle(color: Colors.white, fontSize: 10),
                       ),
                     );

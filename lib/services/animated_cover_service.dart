@@ -77,6 +77,10 @@ class AnimatedCoverService {
   int _generation = 0;
   bool _busy = false;
   int _viewers = 0;
+  DateTime _busySince = DateTime.now();
+  String? _lastPath;
+  String _lastAlbumId = "";
+  Timer? _watchdog;
 
   static String folderOf(String trackFilePath) {
     final normalized = trackFilePath.replaceAll("\\", "/");
@@ -90,15 +94,32 @@ class AnimatedCoverService {
       final metadata = next.valueOrNull;
       final path = metadata?.mediaSourceInfo.path;
       if (metadata != null && path != null && path.isNotEmpty) {
-        unawaited(showFor(path, albumId: metadata.item.albumId?.raw ?? ""));
+        _lastPath = path;
+        _lastAlbumId = metadata.item.albumId?.raw ?? "";
+        unawaited(showFor(path, albumId: _lastAlbumId));
       }
     }, fireImmediately: true);
+    // Safety net: while a cover is on screen without its video, try again (a lookup that got stuck is restarted)
+    _watchdog ??= Timer.periodic(const Duration(seconds: 2), (_) => _ensureShown());
+  }
+
+  void _ensureShown() {
+    final path = _lastPath;
+    if (_viewers == 0 || path == null) return;
+    final folder = folderOf(path);
+    if (current.value?.folder == folder) return;
+    if (_busy && DateTime.now().difference(_busySince) < const Duration(seconds: 12)) return;
+    if (!_busy && _found.containsKey(folder) && _found[folder] == null) return; // this album has no video
+    _wantedFolder = null; // start over
+    _busy = false;
+    unawaited(showFor(path, albumId: _lastAlbumId));
   }
 
   /// A cover is on screen: the video plays only while one is (no decoding for nothing in the background).
   void attach() {
     _viewers++;
     unawaited(current.value?.controller.play());
+    _ensureShown();
   }
 
   void detach() {
@@ -121,12 +142,13 @@ class AnimatedCoverService {
     final generation = ++_generation;
     _wantedFolder = folder;
     _busy = true;
+    _busySince = DateTime.now();
     final previous = current.value;
     current.value = null;
     unawaited(previous?.controller.dispose());
     try {
       status.value = "lookup";
-      final url = await forTrackFile(trackFilePath);
+      final url = await forTrackFile(trackFilePath).timeout(const Duration(seconds: 12));
       if (generation != _generation) return;
       if (url == null) {
         status.value = "no video ($lastReason)";
@@ -155,6 +177,8 @@ class AnimatedCoverService {
         status.value = "error: $e";
         await controller.dispose();
       }
+    } catch (e) {
+      if (generation == _generation) status.value = "lookup failed: $e";
     } finally {
       if (generation == _generation) _busy = false;
     }
@@ -195,7 +219,13 @@ class AnimatedCoverService {
       final dir = await _cacheDir();
       final file = File(path_helper.join(dir.path, _nameFor(folder)));
       if (file.existsSync()) return;
-      final response = await _client.get(Uri.parse(url)).timeout(const Duration(minutes: 2));
+      final client = http.Client(); // its own connection, never in the way of the lookups
+      final http.Response response;
+      try {
+        response = await client.get(Uri.parse(url)).timeout(const Duration(minutes: 2));
+      } finally {
+        client.close();
+      }
       if (response.statusCode != 200 || response.bodyBytes.isEmpty) return;
       final partial = File("${file.path}.part");
       await partial.writeAsBytes(response.bodyBytes, flush: true);
@@ -259,6 +289,22 @@ class AnimatedCoverService {
     return _inFlight[folder] ??= _lookupFolder(folder).whenComplete(() => _inFlight.remove(folder));
   }
 
+  /// Whether the server has the file: asks for its first 2 bytes on a fresh connection (no reused connection that
+  /// could hang), with a firm time limit.
+  Future<int> _exists(String url) async {
+    final request = http.Request("GET", Uri.parse(url))
+      ..headers["Range"] = "bytes=0-1"
+      ..persistentConnection = false;
+    final client = http.Client();
+    try {
+      final response = await client.send(request).timeout(const Duration(seconds: 8));
+      unawaited(response.stream.drain<void>().catchError((Object _) {}));
+      return response.statusCode;
+    } finally {
+      client.close();
+    }
+  }
+
   Future<String?> _lookupFolder(String folder) async {
     final config = await settings();
     if (!config.enabled || config.key.isEmpty) {
@@ -273,9 +319,9 @@ class AnimatedCoverService {
       ]) {
         final url = urlFor(candidate, config.base, config.prefix, config.key);
         step.value = "server";
-        final response = await _client.head(Uri.parse(url)).timeout(const Duration(seconds: 10));
-        lastReason = "HTTP ${response.statusCode}";
-        if (response.statusCode == 200) {
+        final status = await _exists(url);
+        lastReason = "HTTP $status";
+        if (status == 200 || status == 206) {
           step.value = "done";
           _found[folder] = url;
           return url;
