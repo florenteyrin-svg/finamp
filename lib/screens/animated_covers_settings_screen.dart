@@ -1,7 +1,9 @@
 import 'package:finamp/components/finamp_app_bar_back_button.dart';
 import 'package:finamp/l10n/app_localizations.dart';
 import 'package:finamp/services/animated_cover_service.dart';
+import 'package:finamp/services/queue_service.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
 /// Animated covers saved by Alacarte next to each album (cover/animated.mp4), served by nginx.
 class AnimatedCoversSettingsScreen extends StatefulWidget {
@@ -16,6 +18,37 @@ class _AnimatedCoversSettingsScreenState extends State<AnimatedCoversSettingsScr
   final _key = TextEditingController();
   final _prefix = TextEditingController();
   bool _enabled = false;
+  bool _testing = false;
+  String? _testResult;
+
+  /// Shows the album path from Jellyfin, the address built from it and the server's answer, for the current track.
+  Future<void> _test() async {
+    final l10n = AppLocalizations.of(context)!;
+    final albumId = GetIt.instance<QueueService>().getCurrentTrack()?.baseItem.albumId;
+    if (albumId == null) {
+      setState(() => _testResult = l10n.animatedCoversTestNoTrack);
+      return;
+    }
+    setState(() => _testing = true);
+    await _save();
+    String result;
+    try {
+      final check = await AnimatedCoverService.instance.check(albumId);
+      result = [
+        "Jellyfin : ${check.path ?? l10n.animatedCoversTestNoPath}",
+        if (check.url != null) "URL : ${check.url}",
+        if (check.status != null) "HTTP ${check.status} → ${check.found ? "✓" : "✗"}",
+      ].join("\n");
+    } catch (e) {
+      result = "✗ $e";
+    }
+    if (mounted) {
+      setState(() {
+        _testing = false;
+        _testResult = result;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -81,6 +114,13 @@ class _AnimatedCoversSettingsScreenState extends State<AnimatedCoversSettingsScr
               helperMaxLines: 3,
             ),
           ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.play_circle_outline),
+            label: Text(l10n.animatedCoversTest),
+            onPressed: _testing ? null : _test,
+          ),
+          if (_testResult != null) ...[const SizedBox(height: 12), SelectableText(_testResult!)],
         ],
       ),
     );

@@ -29,7 +29,6 @@ class _AnimatedCoverState extends State<AnimatedCover> {
     if (url == null || !mounted) return;
     final controller = VideoPlayerController.networkUrl(
       Uri.parse(url),
-      formatHint: VideoFormat.hls,
       // never take the audio focus from the music
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );

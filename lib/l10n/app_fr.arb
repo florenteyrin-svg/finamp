@@ -3753,5 +3753,8 @@
     "animatedCoversKey": "Clé secrète",
     "animatedCoversKeyHelper": "Le même mot que dans la règle nginx",
     "animatedCoversPrefix": "Dossier de la musique dans Jellyfin",
-    "animatedCoversPrefixHelper": "Le dossier de la médiathèque affiché dans Jellyfin (Tableau de bord > Médiathèques), retiré du chemin des albums"
+    "animatedCoversPrefixHelper": "Le dossier de la médiathèque affiché dans Jellyfin (Tableau de bord > Médiathèques), retiré du chemin des albums",
+    "animatedCoversTest": "Tester avec le morceau en cours",
+    "animatedCoversTestNoTrack": "Lance d'abord un morceau",
+    "animatedCoversTestNoPath": "pas de chemin de dossier (album hors bibliothèque)"
 }
