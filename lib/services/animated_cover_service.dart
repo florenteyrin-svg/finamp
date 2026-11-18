@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:video_player/video_player.dart';
 
 import '../models/jellyfin_models.dart';
 import 'jellyfin_api_helper.dart';
@@ -54,6 +55,58 @@ class AnimatedCoverService {
     await prefs.setString(_secretKey, key.trim());
     await prefs.setString(_prefixKey, prefix.trim());
     _found.clear();
+  }
+
+  /// The video playing for the current album, kept here (not in the cover widget, which the player screen may
+  /// rebuild or recreate at any time) so it survives those rebuilds.
+  final current = ValueNotifier<({String folder, VideoPlayerController controller})?>(null);
+
+  /// Diagnostic status of [showFor] (shown on the cover while testing).
+  final status = ValueNotifier<String>("");
+  String? _wantedFolder;
+
+  static String folderOf(String trackFilePath) {
+    final normalized = trackFilePath.replaceAll("\\", "/");
+    final slash = normalized.lastIndexOf("/");
+    return slash <= 0 ? "" : normalized.substring(0, slash);
+  }
+
+  /// Loads and plays (silent, looping) the animated cover of the album of [trackFilePath], once per album.
+  Future<void> showFor(String trackFilePath) async {
+    final folder = folderOf(trackFilePath);
+    if (folder.isEmpty || folder == _wantedFolder) return;
+    _wantedFolder = folder;
+    final previous = current.value;
+    current.value = null;
+    unawaited(previous?.controller.dispose());
+    status.value = "lookup";
+    final url = await forTrackFile(trackFilePath);
+    if (_wantedFolder != folder) return;
+    if (url == null) {
+      status.value = "no video ($lastReason)";
+      return;
+    }
+    status.value = "opening";
+    final controller = VideoPlayerController.networkUrl(
+      Uri.parse(url),
+      // never take the audio focus from the music
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
+    try {
+      await controller.initialize();
+      await controller.setVolume(0);
+      await controller.setLooping(true);
+      await controller.play();
+      if (_wantedFolder != folder) {
+        await controller.dispose();
+        return;
+      }
+      status.value = "playing ${controller.value.size.width.round()}";
+      current.value = (folder: folder, controller: controller);
+    } catch (e) {
+      status.value = "error: $e";
+      await controller.dispose();
+    }
   }
 
   /// The video for the album folder of the track file at [trackFilePath] (from the playback info Finamp already
