@@ -21,8 +21,6 @@ object WidgetActions {
     /** Not a media session action: switches the spectrum of the vinyl widget to its next style. */
     const val NEXT_SPECTRUM_STYLE = "nextSpectrumStyle"
 
-    /** Not a media session action either: switches the vinyl widget's tonearm to its next model. */
-    const val NEXT_TONEARM_STYLE = "nextTonearmStyle"
     private const val EXTRA_ACTION = "action"
 
     fun pendingIntent(context: Context, action: String): PendingIntent {
@@ -70,10 +68,6 @@ class WidgetActionReceiver : BroadcastReceiver() {
         val action = WidgetActions.actionOf(intent) ?: return
         if (action == WidgetActions.NEXT_SPECTRUM_STYLE) {
             SpectrumEngine.nextStyle(context)
-            return
-        }
-        if (action == WidgetActions.NEXT_TONEARM_STYLE) {
-            NowPlayingWidgets.nextTonearmStyle(context)
             return
         }
         val pending = goAsync()

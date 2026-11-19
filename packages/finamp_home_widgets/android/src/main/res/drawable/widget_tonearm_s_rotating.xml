@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Same rotation as widget_tonearm_rotating, for another arm model -->
+<!-- The tonearm, turned around its pivot by the image level (0..10000 -> -4..26 degrees) -->
 <rotate xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/widget_tonearm_s_straight"
     android:fromDegrees="-4"

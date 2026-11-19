@@ -181,12 +181,8 @@ object NowPlayingWidgets {
         // Angles for a 70-long arm pivoting at (90,10) over a record of radius 50 centred at (50,50).
         val progress = if (duration != null && duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
         val angle = if (state.playing && state.title != null) 4f + (24.6f - 4f) * progress else -4f
-        views.setImageViewResource(R.id.widget_tonearm, tonearmModels[tonearmStyle(context) % tonearmModels.size])
-        // Tap the arm for the next model
-        views.setOnClickPendingIntent(
-            R.id.widget_tonearm,
-            WidgetActions.pendingIntent(context, WidgetActions.NEXT_TONEARM_STYLE),
-        )
+        // Tapping the arm opens the app, like the rest of the widget
+        views.setOnClickPendingIntent(R.id.widget_tonearm, openApp(context))
         views.setInt(R.id.widget_tonearm, "setImageLevel", ((angle + 4f) / 30f * 10000).toInt().coerceIn(0, 10000))
         if (duration != null && duration > 0) {
             views.setProgressBar(R.id.widget_progress, 1000, (position * 1000 / duration).toInt().coerceIn(0, 1000), false)
@@ -237,25 +233,6 @@ object NowPlayingWidgets {
         views.setViewVisibility(R.id.widget_label_spinning, if (spinning) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_art, if (spinning) View.GONE else View.VISIBLE)
         frames?.forEachIndexed { i, uri -> views.setImageViewUri(labelFrameIds[i], uri) }
-    }
-
-    /** Tonearm models (all turned the same way): classic, S-shaped with counterweight, J-shaped, gold, red head. */
-    private val tonearmModels = intArrayOf(
-        R.drawable.widget_tonearm_rotating,
-        R.drawable.widget_tonearm_s_rotating,
-        R.drawable.widget_tonearm_j_rotating,
-        R.drawable.widget_tonearm_gold_rotating,
-        R.drawable.widget_tonearm_red_rotating,
-    )
-
-    private fun tonearmStyle(context: Context) =
-        context.getSharedPreferences("finamp_home_widgets", Context.MODE_PRIVATE).getInt("tonearmStyle", 0)
-
-    /** Next tonearm model, then redraws the widgets with it. */
-    fun nextTonearmStyle(context: Context) {
-        val prefs = context.getSharedPreferences("finamp_home_widgets", Context.MODE_PRIVATE)
-        prefs.edit().putInt("tonearmStyle", (tonearmStyle(context) + 1) % tonearmModels.size).apply()
-        updateInBackground(context, NowPlayingStore.load(context))
     }
 
     private fun formatTime(ms: Long): String {

@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- The tonearm, turned around its pivot by the image level (0..10000 -> -4..26 degrees):
-     -4 = resting beside the record, 4 = outer edge (start of the track), 24.6 = next to the label (end) -->
-<rotate xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/widget_tonearm_straight"
-    android:fromDegrees="-4"
-    android:toDegrees="26"
-    android:pivotX="90%"
-    android:pivotY="10%" />

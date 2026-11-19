@@ -755,6 +755,6 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:importantForAccessibility="no"
-            android:src="@drawable/widget_tonearm_rotating" />
+            android:src="@drawable/widget_tonearm_s_rotating" />
     </FrameLayout>
 </FrameLayout>
