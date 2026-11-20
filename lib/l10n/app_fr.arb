@@ -3756,5 +3756,9 @@
     "animatedCoversPrefixHelper": "Le dossier de la médiathèque affiché dans Jellyfin (Tableau de bord > Médiathèques), retiré du chemin des albums",
     "animatedCoversTest": "Tester avec le morceau en cours",
     "animatedCoversTestNoTrack": "Lance d'abord un morceau",
-    "animatedCoversTestNoPath": "pas de chemin de dossier (album hors bibliothèque)"
+    "animatedCoversTestNoPath": "pas de chemin de dossier (album hors bibliothèque)",
+    "musicVideos": "Clips",
+    "musicVideosEmpty": "Aucun clip dans ta bibliothèque Jellyfin",
+    "musicVideosSearch": "Rechercher",
+    "musicVideoError": "Impossible de lire ce clip"
 }

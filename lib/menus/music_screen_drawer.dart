@@ -10,6 +10,7 @@ import 'package:finamp/l10n/app_localizations.dart';
 import 'package:finamp/models/finamp_models.dart';
 import 'package:finamp/screens/downloads_screen.dart';
 import 'package:finamp/screens/logs_screen.dart';
+import 'package:finamp/screens/music_videos_screen.dart';
 import 'package:finamp/screens/playback_history_screen.dart';
 import 'package:finamp/screens/queue_restore_screen.dart';
 import 'package:finamp/screens/settings_screen.dart';
@@ -144,6 +145,17 @@ class MusicScreenDrawer extends ConsumerWidget {
                         ),
                         title: Text(AppLocalizations.of(context)!.downloads, style: TextStyle(fontSize: 15.0)),
                         onTap: () => Navigator.of(context).pushNamed(DownloadsScreen.routeName),
+                        dense: true,
+                      ),
+                      ListTile(
+                        leading: const Padding(
+                          padding: EdgeInsets.only(left: 2.0, right: 12.0),
+                          child: Icon(Icons.music_video, size: 20.0),
+                        ),
+                        title: Text(AppLocalizations.of(context)!.musicVideos, style: TextStyle(fontSize: 15.0)),
+                        onTap: () => Navigator.of(
+                          context,
+                        ).push(MaterialPageRoute<void>(builder: (_) => const MusicVideosScreen())),
                         dense: true,
                       ),
                       ListTile(

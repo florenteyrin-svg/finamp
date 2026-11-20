@@ -3954,5 +3954,13 @@
     "animatedCoversTestNoTrack": "Play a track first",
     "@animatedCoversTestNoTrack": {"description": "Animated covers test: Play a track first"},
     "animatedCoversTestNoPath": "no folder path (not a library album)",
-    "@animatedCoversTestNoPath": {"description": "Animated covers test: no folder path (not a library album)"}
+    "@animatedCoversTestNoPath": {"description": "Animated covers test: no folder path (not a library album)"},
+    "musicVideos": "Music videos",
+    "@musicVideos": {"description": "Drawer entry and screen title: Music videos (from the Jellyfin library)"},
+    "musicVideosEmpty": "No music videos in your Jellyfin library",
+    "@musicVideosEmpty": {"description": "Music videos screen: No music videos in your Jellyfin library"},
+    "musicVideosSearch": "Search",
+    "@musicVideosSearch": {"description": "Music videos screen: search field hint"},
+    "musicVideoError": "This video can't be played",
+    "@musicVideoError": {"description": "Music video player: This video can't be played"}
 }
