@@ -160,10 +160,10 @@ class AndroidAutoHelper {
       includeItemTypes: includeItemTypes.jellyfinName,
       limit: onlineModeLimit,
     );
-    return items ?? [];
+    return (items ?? []).where(isLocal).toList();
   }
 
-  /// Android Auto's "For you" tab: the playlists, then the 10 albums most recently added to the library.
+  /// Android Auto's "For you" tab: the library playlists (smart playlists included), then the favourite albums.
   Future<List<MediaItem>> getForYouItems() async {
     final queueService = GetIt.instance<QueueService>();
     final List<MediaItem> result = [];
@@ -179,24 +179,24 @@ class AndroidAutoHelper {
     try {
       List<BaseItemDto> albums;
       if (FinampSettingsHelper.finampSettings.isOffline) {
-        albums =
-            (await _downloadsService.getAllCollections(
-                includeItemTypes: [BaseItemDtoType.album],
-              )).map((e) => e.baseItem).nonNulls.toList()
-              ..sort((a, b) => (b.dateCreated ?? "").compareTo(a.dateCreated ?? ""));
+        albums = (await _downloadsService.getAllCollections(
+          includeItemTypes: [BaseItemDtoType.album],
+          onlyFavorites: true,
+        )).map((e) => e.baseItem).nonNulls.toList();
       } else {
         albums =
             await _jellyfinApiHelper.getItems(
               parentItem: _finampUserHelper.currentUser?.currentView,
               includeItemTypes: BaseItemDtoType.album.jellyfinName,
-              sortBy: "DateCreated,SortName",
-              sortOrder: "Descending",
+              sortBy: "SortName",
+              sortOrder: "Ascending",
               recursive: true,
-              limit: 10,
+              isFavorite: true,
+              limit: 100,
             ) ??
             [];
       }
-      for (final album in albums.take(10)) {
+      for (final album in albums.where(isLocal)) {
         result.add(
           await queueService.generateMediaItem(
             album,
@@ -207,7 +207,7 @@ class AndroidAutoHelper {
         );
       }
     } catch (err) {
-      _androidAutoHelperLogger.severe("Error while getting recently added albums for Android Auto:", err);
+      _androidAutoHelperLogger.severe("Error while getting favourite albums for Android Auto:", err);
     }
     return result;
   }
@@ -301,7 +301,6 @@ class AndroidAutoHelper {
   Future<void> playFromSearch(AndroidAutoSearchQuery searchQuery) async {
     final jellyfinApiHelper = GetIt.instance<JellyfinApiHelper>();
     final finampUserHelper = GetIt.instance<FinampUserHelper>();
-    final audioServiceHelper = GetIt.instance<AudioServiceHelper>();
     final queueService = GetIt.instance<QueueService>();
 
     if (searchQuery.rawQuery.isEmpty) {
@@ -516,7 +515,7 @@ class AndroidAutoHelper {
             order: FinampPlaybackOrder.linear,
           );
         } else {
-          await audioServiceHelper.startInstantMixForArtists([selectedResult]).then((value) => 1);
+          await playArtistFromLibrary(selectedResult);
         }
       } else {
         if (FinampSettingsHelper.finampSettings.isOffline) {
@@ -549,7 +548,7 @@ class AndroidAutoHelper {
             ),
           );
         } else {
-          await audioServiceHelper.startInstantMixForItem(selectedResult).then((value) => 1);
+          await playTrackMixFromLibrary(selectedResult);
         }
       }
     } catch (err) {
@@ -595,7 +594,6 @@ class AndroidAutoHelper {
   }
 
   Future<void> playFromMediaId(MediaItemId itemId) async {
-    final audioServiceHelper = GetIt.instance<AudioServiceHelper>();
     final finampUserHelper = GetIt.instance<FinampUserHelper>();
     // queue service should be initialized by time we get here
     final queueService = GetIt.instance<QueueService>();
@@ -639,7 +637,7 @@ class AndroidAutoHelper {
           ),
         );
       } else {
-        return await audioServiceHelper.startInstantMixForItem(await _jellyfinApiHelper.getItemById(itemId.itemId!));
+        return await playTrackMixFromLibrary(await _jellyfinApiHelper.getItemById(itemId.itemId!));
       }
     }
 
@@ -668,7 +666,7 @@ class AndroidAutoHelper {
           order: FinampPlaybackOrder.linear,
         );
       } else {
-        return await audioServiceHelper.startInstantMixForArtists([parentItem]);
+        return await playArtistFromLibrary(parentItem);
       }
     }
 
@@ -1123,7 +1121,68 @@ class AndroidAutoHelper {
       }
     }
 
-    return searchResult;
+    return searchResult?.where(isLocal).toList();
+  }
+
+  /// Items of the Jellyfin library itself, not the Apple Music ones Allstarr adds (ids `ext-...`): Android Auto and
+  /// voice requests only ever use the library.
+  static bool isLocal(BaseItemDto item) => !item.id.raw.startsWith("ext-");
+
+  /// Plays an artist's own library tracks, shuffled (instead of a server mix, which Allstarr fills with Apple Music).
+  Future<void> playArtistFromLibrary(BaseItemDto artist) async {
+    final queueService = GetIt.instance<QueueService>();
+    final tracks = <BaseItemDto>[];
+    for (final artistType in [ArtistType.artist, ArtistType.albumArtist]) {
+      final items =
+          await _jellyfinApiHelper.getItems(
+            parentItem: artist,
+            artistType: artistType,
+            libraryFilter: _finampUserHelper.currentUser?.currentView?.id,
+            includeItemTypes: BaseItemDtoType.track.jellyfinName,
+            recursive: true,
+            sortBy: "Random",
+            limit: 300,
+          ) ??
+          [];
+      tracks.addAll(items.where(isLocal).where((t) => !tracks.any((known) => known.id == t.id)));
+      if (tracks.isNotEmpty) break;
+    }
+    if (tracks.isEmpty) {
+      _androidAutoHelperLogger.warning("No library tracks for artist ${artist.name}");
+      return;
+    }
+    await queueService.startPlayback(
+      items: tracks,
+      source: QueueItemSource(
+        type: QueueItemSourceType.artist,
+        name: QueueItemSourceName(type: QueueItemSourceNameType.preTranslated, pretranslatedName: artist.name),
+        id: artist.id,
+        item: artist,
+      ),
+      order: FinampPlaybackOrder.shuffled,
+    );
+  }
+
+  /// Plays a track followed by a mix of similar library tracks (the Apple Music ones Allstarr adds are left out).
+  Future<void> playTrackMixFromLibrary(BaseItemDto track) async {
+    final queueService = GetIt.instance<QueueService>();
+    List<BaseItemDto> items = [];
+    try {
+      items = (await _jellyfinApiHelper.getInstantMix(track) ?? []).where(isLocal).toList();
+    } catch (e) {
+      _androidAutoHelperLogger.warning("Instant mix failed for ${track.name}: $e");
+    }
+    items.removeWhere((item) => item.id == track.id);
+    await queueService.startPlayback(
+      items: [track, ...items],
+      source: QueueItemSource(
+        type: QueueItemSourceType.trackMix,
+        name: QueueItemSourceName(type: QueueItemSourceNameType.mix, localizationParameter: track.name ?? ""),
+        id: track.id,
+        item: track,
+      ),
+      order: FinampPlaybackOrder.linear,
+    );
   }
 
   // albums, playlists, and tracks should play when clicked
