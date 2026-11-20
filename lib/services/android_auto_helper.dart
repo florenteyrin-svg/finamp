@@ -163,6 +163,55 @@ class AndroidAutoHelper {
     return items ?? [];
   }
 
+  /// Android Auto's "For you" tab: the playlists, then the 10 albums most recently added to the library.
+  Future<List<MediaItem>> getForYouItems() async {
+    final queueService = GetIt.instance<QueueService>();
+    final List<MediaItem> result = [];
+    try {
+      result.addAll(
+        await getMediaItems(
+          MediaItemId(contentType: ContentType.playlists, parentType: MediaItemParentType.rootCollection),
+        ),
+      );
+    } catch (err) {
+      _androidAutoHelperLogger.severe("Error while getting playlists for Android Auto:", err);
+    }
+    try {
+      List<BaseItemDto> albums;
+      if (FinampSettingsHelper.finampSettings.isOffline) {
+        albums =
+            (await _downloadsService.getAllCollections(
+                includeItemTypes: [BaseItemDtoType.album],
+              )).map((e) => e.baseItem).nonNulls.toList()
+              ..sort((a, b) => (b.dateCreated ?? "").compareTo(a.dateCreated ?? ""));
+      } else {
+        albums =
+            await _jellyfinApiHelper.getItems(
+              parentItem: _finampUserHelper.currentUser?.currentView,
+              includeItemTypes: BaseItemDtoType.album.jellyfinName,
+              sortBy: "DateCreated,SortName",
+              sortOrder: "Descending",
+              recursive: true,
+              limit: 10,
+            ) ??
+            [];
+      }
+      for (final album in albums.take(10)) {
+        result.add(
+          await queueService.generateMediaItem(
+            album,
+            parentType: MediaItemParentType.collection,
+            parentId: album.parentId,
+            isPlayable: _isPlayable,
+          ),
+        );
+      }
+    } catch (err) {
+      _androidAutoHelperLogger.severe("Error while getting recently added albums for Android Auto:", err);
+    }
+    return result;
+  }
+
   Future<List<MediaItem>> getRecentItems() async {
     final queueService = GetIt.instance<QueueService>();
     //TODO this should ideally list recent queues (the restorable ones), or items from the home screen

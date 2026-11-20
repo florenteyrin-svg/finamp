@@ -336,60 +336,75 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
 
     AudioSession.instance.then((session) {
       bool wasPlayingBeforeInterruption = false;
+      DateTime interruptionStart = DateTime.now();
+      // Interruptions are always handled here (not by the player), so a resume can be refused when the car (or
+      // headphones) went away in the meantime: the music must never come back on the phone's speaker by itself.
       session.interruptionEventStream.listen((event) {
-        bool customInterruptionHandlingNeeded = !FinampSettingsHelper.finampSettings.duckOnAudioInterruption;
-        if (!customInterruptionHandlingNeeded) {
-          return;
-        }
         if (event.begin) {
           switch (event.type) {
             case AudioInterruptionType.duck:
-              // if we are in here, then ducking should be disabled anyway, so this is a no-op
+              // with ducking enabled Android lowers the volume itself, otherwise this does not happen
               break;
             case AudioInterruptionType.pause:
             case AudioInterruptionType.unknown:
               // Another app started playing audio and we should pause.
               wasPlayingBeforeInterruption = _player.playing;
+              interruptionStart = DateTime.now();
               pause();
               break;
           }
         } else {
           switch (event.type) {
             case AudioInterruptionType.duck:
-              // The interruption ended and we should unduck.
               // keeping this in here won't hurt, and ensures we never become stuck in a ducked state
               _volume.unduck();
               break;
             case AudioInterruptionType.pause:
-              // The interruption ended and we should resume.
-              if (wasPlayingBeforeInterruption) {
+              // The interruption ended: resume, unless the output went away meanwhile or it lasted long
+              final lost = _outputLostAt;
+              final outputGone = lost != null && lost.isAfter(interruptionStart.subtract(const Duration(seconds: 2)));
+              final tooLong = DateTime.now().difference(interruptionStart) > const Duration(minutes: 3);
+              if (wasPlayingBeforeInterruption && !outputGone && !tooLong) {
                 play();
+              } else if (wasPlayingBeforeInterruption) {
+                _audioServiceBackgroundTaskLogger.info(
+                  "Not resuming after interruption (output gone: $outputGone, too long: $tooLong)",
+                );
               }
+              wasPlayingBeforeInterruption = false;
               break;
             case AudioInterruptionType.unknown:
               // The interruption ended but we should not resume.
+              wasPlayingBeforeInterruption = false;
               break;
           }
         }
       });
       session.becomingNoisyEventStream.listen((_) {
-        // The user unplugged/disconnected the headphones/speaker/car, so we should pause ~~or lower~~ the volume.
-        if (FinampSettingsHelper.finampSettings.duckOnAudioInterruption) {
-          // if this is enabled, we let the [AudioPlayer] handle this automatically, via [handleInterruptions]
-        } else {
-          // if ducking is disabled, the audio player doesn't handle interruptions on its own, so we need to make sure to pause
-          pause();
-        }
+        // The car / headphones / speaker went away: pause, and don't let anything resume on the phone right after
+        _audioServiceBackgroundTaskLogger.info("Audio output went away (becoming noisy): pausing");
+        _outputLost();
+        wasPlayingBeforeInterruption = false;
       });
       session.devicesChangedEventStream.listen((event) {
         _outputLogger.info('Devices added:   ${event.devicesAdded}');
         _outputLogger.info('Devices removed: ${event.devicesRemoved}');
+        // a car, Bluetooth device, headphones... (anything but the phone's own speaker and earpiece)
+        const phoneOutputs = {"builtInSpeaker", "builtInEarpiece", "unknown"};
+        final externalOutputRemoved = event.devicesRemoved.any(
+          (device) => device.isOutput && !phoneOutputs.contains(device.type.name),
+        );
+        if (externalOutputRemoved) {
+          _outputLost();
+          wasPlayingBeforeInterruption = false;
+        }
       });
     });
 
     _player = AudioPlayer(
       maxSkipsOnError: 0,
-      handleInterruptions: FinampSettingsHelper.finampSettings.duckOnAudioInterruption,
+      // always handled by the listeners above (they also refuse to resume once the car is gone)
+      handleInterruptions: false,
       androidAudioOffloadPreferences: AndroidAudioOffloadPreferences(
         audioOffloadMode: FinampSettingsHelper.finampSettings.forceAudioOffloadingOnAndroid
             ? AndroidAudioOffloadMode.enabled
@@ -623,8 +638,23 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   /// Fully dispose the player instance.  Should only be called during app shutdown.
   Future<void> dispose() => _player.dispose();
 
+  /// When the car / headphones / external speaker last went away.
+  DateTime? _outputLostAt;
+
+  void _outputLost() {
+    _outputLostAt = DateTime.now();
+    if (_player.playing) unawaited(_player.pause());
+  }
+
   @override
   Future<void> play({bool disableFade = false}) async {
+    // A car that shuts down (or a Bluetooth device that disconnects) sometimes sends "play" on its way out, or the
+    // audio focus comes back right after: never start on the phone's speaker by itself in the seconds that follow.
+    final lost = _outputLostAt;
+    if (lost != null && DateTime.now().difference(lost) < const Duration(seconds: 8)) {
+      _audioServiceBackgroundTaskLogger.info("play() ignored: the audio output just went away");
+      return;
+    }
     _forwardToCast("play");
     _audioServiceBackgroundTaskLogger.info(
       "play() start: disableFade=$disableFade, playing=${_player.playing}, fadeDirection=${fadeState.value.fadeDirection}, currentIndex=${_player.currentIndex}, position=${_player.position}",
@@ -1097,11 +1127,8 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
         return [];
       }
     } else if (parentMediaId == AudioService.recentRootId) {
-      // return await _androidAutoHelper.getRecentItems();
-      // return playlists for now
-      return await _androidAutoHelper.getMediaItems(
-        MediaItemId(contentType: ContentType.playlists, parentType: MediaItemParentType.rootCollection),
-      );
+      // "For you": playlists, then the 10 most recently added albums
+      return await _androidAutoHelper.getForYouItems();
     } else {
       try {
         final itemId = MediaItemId.fromJson(jsonDecode(parentMediaId) as Map<String, dynamic>);
