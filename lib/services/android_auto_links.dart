@@ -96,7 +96,9 @@ class AndroidAutoLinks {
     }
     final artist = await helper.getParentFromId(id);
     if (artist == null) return [];
-    return GetIt.instance<ProviderContainer>().read(getArtistTracksProvider(artist: artist).future);
+    final tracks = await GetIt.instance<ProviderContainer>().read(getArtistTracksProvider(artist: artist).future);
+    // library tracks only, never the Apple Music ones Allstarr adds
+    return tracks.where(AndroidAutoHelper.isLocal).toList();
   }
 
   static Future<List<MediaItem>> getChildren(String mediaId) async {
