@@ -10,6 +10,7 @@ import 'package:finamp/services/music_player_background_task.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
+import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -175,42 +176,92 @@ class _MusicVideoPlayerScreenState extends State<MusicVideoPlayerScreen> {
     unawaited(_open());
   }
 
+  /// Server conversion session to stop when leaving (only when the converted stream was used).
+  Uri? _stopConversion;
+  final _openers = <VideoPlayerController>{};
+
+  /// Starts with the file itself (streamed: playback begins after its first seconds). If it is not playing quickly
+  /// (a file whose index is at its end has to be read through first), the server's stream (copied as is when
+  /// possible, converted otherwise) is started alongside, and whichever plays first wins.
   Future<void> _open() async {
     final user = GetIt.instance<FinampUserHelper>().currentUser!;
     final base = user.baseURL.replaceAll(RegExp(r'/+$'), "");
     final id = widget.video.id.raw;
+    final session = "finamp-${Random().nextInt(1 << 31)}";
+    const device = "finamp-music-videos";
     final direct = Uri.parse(
       "$base/Videos/$id/stream",
     ).replace(queryParameters: {"static": "true", "MediaSourceId": id, "ApiKey": user.accessToken});
-    final converted = Uri.parse("$base/Videos/$id/master.m3u8").replace(
+    final streamed = Uri.parse("$base/Videos/$id/master.m3u8").replace(
       queryParameters: {
         "MediaSourceId": id,
-        "VideoCodec": "h264",
-        "AudioCodec": "aac",
-        "PlaySessionId": "finamp-${Random().nextInt(1 << 31)}",
-        "DeviceId": "finamp-music-videos",
+        "VideoCodec": "h264,hevc",
+        "AudioCodec": "aac,mp3",
+        "AllowVideoStreamCopy": "true",
+        "AllowAudioStreamCopy": "true",
+        "SegmentLength": "2",
+        "MinSegments": "1",
+        "PlaySessionId": session,
+        "DeviceId": device,
         "ApiKey": user.accessToken,
       },
     );
-    for (final (uri, hint) in [(direct, null), (converted, VideoFormat.hls)]) {
+    final winner = Completer<VideoPlayerController?>();
+    var pending = 0;
+
+    void start(Uri uri, VideoFormat? hint) {
       final controller = VideoPlayerController.networkUrl(uri, formatHint: hint);
-      try {
-        await controller.initialize().timeout(const Duration(seconds: 30));
-        if (!mounted) {
-          await controller.dispose();
-          return;
-        }
-        controller.addListener(_onTick);
-        await controller.play();
-        setState(() => _controller = controller);
-        _scheduleHide();
-        return;
-      } catch (e) {
-        _logger.warning("Could not open ${hint == null ? "the file" : "the converted stream"}: $e");
-        await controller.dispose();
-      }
+      _openers.add(controller);
+      pending++;
+      controller
+          .initialize()
+          .timeout(const Duration(seconds: 45))
+          .then((_) {
+            if (!winner.isCompleted) {
+              if (hint == VideoFormat.hls) {
+                _stopConversion = Uri.parse(
+                  "$base/Videos/ActiveEncodings",
+                ).replace(queryParameters: {"DeviceId": device, "PlaySessionId": session, "ApiKey": user.accessToken});
+              }
+              winner.complete(controller);
+            } else {
+              _drop(controller);
+            }
+          })
+          .catchError((Object e) {
+            _logger.warning("Could not open ${hint == null ? "the file" : "the server stream"}: $e");
+            _drop(controller);
+            pending--;
+            if (pending == 0 && !winner.isCompleted) winner.complete(null);
+          });
     }
-    if (mounted) setState(() => _failed = true);
+
+    start(direct, null);
+    // not playing after a moment: the server stream joins the race
+    final backup = Timer(const Duration(milliseconds: 2500), () {
+      if (!winner.isCompleted && mounted) start(streamed, VideoFormat.hls);
+    });
+    final controller = await winner.future;
+    backup.cancel();
+    for (final other in _openers.toList()) {
+      if (other != controller) _drop(other);
+    }
+    if (controller == null) {
+      if (mounted) setState(() => _failed = true);
+      return;
+    }
+    if (!mounted) {
+      _drop(controller);
+      return;
+    }
+    controller.addListener(_onTick);
+    await controller.play();
+    setState(() => _controller = controller);
+    _scheduleHide();
+  }
+
+  void _drop(VideoPlayerController controller) {
+    if (_openers.remove(controller)) unawaited(controller.dispose().catchError((Object _) {}));
   }
 
   void _onTick() {
@@ -233,7 +284,11 @@ class _MusicVideoPlayerScreenState extends State<MusicVideoPlayerScreen> {
   void dispose() {
     _hideTimer?.cancel();
     _controller?.removeListener(_onTick);
-    unawaited(_controller?.dispose());
+    for (final controller in _openers.toList()) {
+      _drop(controller);
+    }
+    final stop = _stopConversion;
+    if (stop != null) unawaited(http.delete(stop).then((_) {}, onError: (Object _) {}));
     unawaited(WakelockPlus.disable());
     unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     super.dispose();
@@ -261,7 +316,16 @@ class _MusicVideoPlayerScreenState extends State<MusicVideoPlayerScreen> {
               child: _failed
                   ? Text(AppLocalizations.of(context)!.musicVideoError, style: const TextStyle(color: Colors.white))
                   : controller == null
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  ? Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: Opacity(opacity: 0.5, child: AlbumImage(item: widget.video)),
+                        ),
+                        const CircularProgressIndicator(color: Colors.white),
+                      ],
+                    )
                   : AspectRatio(aspectRatio: value!.aspectRatio, child: VideoPlayer(controller)),
             ),
             AnimatedOpacity(
