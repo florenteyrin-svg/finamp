@@ -1,10 +1,12 @@
 package com.unicornsonlsd.finamp
 
+import android.app.SearchManager
 import android.app.UiModeManager
 import android.content.Intent
 import android.content.Intent.CATEGORY_APP_MUSIC
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.provider.MediaStore.INTENT_ACTION_MUSIC_PLAYER
 import android.provider.Settings
 import android.system.ErrnoException
@@ -59,6 +61,23 @@ class MainActivity : AudioServiceActivity() {
     }
 
     private fun updateIntent(intent: Intent) {
+        // "Play ... on Finamp" from Gemini / Google Assistant on the phone: handed to the app as a search link
+        if (intent.action == MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH) {
+            val builder = android.net.Uri.Builder().scheme("finamp").authority("play").appendPath("search")
+            builder.appendQueryParameter("q", intent.getStringExtra(SearchManager.QUERY) ?: "")
+            for ((key, name) in listOf(
+                MediaStore.EXTRA_MEDIA_FOCUS to "focus",
+                MediaStore.EXTRA_MEDIA_ARTIST to "artist",
+                MediaStore.EXTRA_MEDIA_ALBUM to "album",
+                MediaStore.EXTRA_MEDIA_TITLE to "title",
+                MediaStore.EXTRA_MEDIA_GENRE to "genre",
+                MediaStore.EXTRA_MEDIA_PLAYLIST to "playlist",
+            )) {
+                intent.getStringExtra(key)?.let { builder.appendQueryParameter(name, it) }
+            }
+            intent.data = builder.build()
+            return
+        }
         if (
             (intent.action == INTENT_ACTION_MUSIC_PLAYER || intent.action == CATEGORY_APP_MUSIC) &&
             intent.data == null

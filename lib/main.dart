@@ -890,6 +890,20 @@ class _FinampState extends State<Finamp> with WindowListener {
         switch (uri.pathSegments) {
           case ["surprisemix"]:
             await GetIt.instance<AudioServiceHelper>().startSurpriseMeMix();
+          case ["search"]:
+            // "Play ... on Finamp" from Gemini / Google Assistant on the phone, same handling as in the car
+            final params = uri.queryParameters;
+            await GetIt.instance<MusicPlayerBackgroundTask>().playFromSearch(params["q"] ?? "", {
+              for (final (name, key) in const [
+                ("focus", "android.intent.extra.focus"),
+                ("artist", "android.intent.extra.artist"),
+                ("album", "android.intent.extra.album"),
+                ("title", "android.intent.extra.title"),
+                ("genre", "android.intent.extra.genre"),
+                ("playlist", "android.intent.extra.playlist"),
+              ])
+                if (params[name] != null) key: params[name],
+            });
           case [String itemId]:
             final item = await container.read(itemByIdProvider(BaseItemId(itemId)).future);
             if (item != null) {
