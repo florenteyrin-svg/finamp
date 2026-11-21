@@ -3962,5 +3962,7 @@
     "musicVideosSearch": "Search",
     "@musicVideosSearch": {"description": "Music videos screen: search field hint"},
     "musicVideoError": "This video can't be played",
-    "@musicVideoError": {"description": "Music video player: This video can't be played"}
+    "@musicVideoError": {"description": "Music video player: This video can't be played"},
+    "androidAutoForYou": "For you",
+    "@androidAutoForYou": {"description": "Android Auto first tab: playlists then favourite albums"}
 }

@@ -1057,8 +1057,13 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
   }
 
   /// Returns the top-level browsable categories for use in a media browser.
+  static const _forYouId = "finamp-for-you";
+
   List<MediaItem> _getRootMenu() {
     return [
+      // First tab: Android Auto's "For you" card next to the map shows the first tab's content, so this one comes
+      // first: the playlists, then the favourite albums
+      MediaItem(id: _forYouId, title: _appLocalizations?.androidAutoForYou ?? "For you", playable: false),
       // album and artist of the current track
       MediaItem(
         id: AndroidAutoLinks.nowPlayingId,
@@ -1116,6 +1121,8 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
       );
 
       return _getRootMenu();
+    } else if (parentMediaId == _forYouId) {
+      return await _androidAutoHelper.getForYouItems();
     } else if (parentMediaId == AndroidAutoLinks.nowPlayingId) {
       return AndroidAutoLinks.nowPlayingChildren(mediaItem.valueOrNull);
     } else if (AndroidAutoLinks.handles(parentMediaId)) {
@@ -1127,7 +1134,7 @@ class MusicPlayerBackgroundTask extends BaseAudioHandler with SeekHandler, Queue
         return [];
       }
     } else if (parentMediaId == AudioService.recentRootId) {
-      // "For you": playlists, then the 10 most recently added albums
+      // recent request (playback resumption): same list as the "For you" tab
       return await _androidAutoHelper.getForYouItems();
     } else {
       try {
