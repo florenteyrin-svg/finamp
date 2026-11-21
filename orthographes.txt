@@ -1,0 +1,19 @@
+# Ecritures imposees (une par ligne), prioritaires sur "l'ecriture la plus frequente".
+#   Nom                  -> toutes les variantes de ce nom (majuscules, accents) deviennent "Nom"
+#   Variante => Nom      -> deux noms differents fusionnes (ex : Kat De Luna => Kat DeLuna)
+# Modifie librement, puis relance : python3 corriger_flac.py apercu "..."
+PNL
+LMFAO
+Usher
+Mister You
+SWV
+D'Angelo
+The O'Jays
+OutKast
+Aminé
+Joé Dwèt Filé
+Choc
+Cheb Bouha
+REDK
+Kat DeLuna
+Kat De Luna => Kat DeLuna

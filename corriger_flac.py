@@ -43,6 +43,7 @@ DISC_DIR = re.compile(r"^[\(\[]?\s*(cd|disc|disk|disque)[\s._-]*0*(\d+)", re.IGN
 FEAT_PAREN = re.compile(r"\s*[\(\[]\s*(?:feat\.?|ft\.?|featuring)\s+([^\)\]]+)[\)\]]", re.IGNORECASE)
 FEAT_SPLIT = re.compile(r"\s+(?:feat\.?|ft\.?|featuring)\s+", re.IGNORECASE)
 COMMA_SPLIT = re.compile(r"\s*[,;]\s*")
+ARTICLES = {"the", "les", "la", "le"}
 DEFAULT_EXCEPTIONS = [
     "Earth, Wind & Fire", "Tyler, The Creator", "Crosby, Stills, Nash & Young", "Crosby, Stills & Nash",
     "Emerson, Lake & Palmer", "Peter, Paul and Mary", "Blood, Sweat & Tears", "Now, Now",
@@ -77,6 +78,24 @@ def load_exceptions(path):
     return names
 
 
+def load_spellings(path):
+    """orthographes.txt: 'Nom' forces that writing for all its variants; 'Variante => Nom' merges two names."""
+    forced, aliases = {}, {}
+    if path and os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=>" in line:
+                    alias, target = (clean(x) for x in line.split("=>", 1))
+                    aliases[norm(alias)] = target
+                    forced[norm(target)] = target
+                else:
+                    forced[norm(line)] = clean(line)
+    return forced, aliases
+
+
 def split_artists(value, exceptions):
     """'A, B feat. C' -> ['A', 'B', 'C'], keeping names listed in exceptions whole."""
     text = clean(value)
@@ -97,6 +116,10 @@ def split_artists(value, exceptions):
         for token, original in protected.items():
             part = part.replace(token, original)
         part = clean(part)
+        if norm(part) in ARTICLES and out:
+            # "Roots, The" is one name written backwards: "The Roots"
+            out[-1] = f"{part[:1].upper()}{part[1:]} {out[-1]}"
+            continue
         if part and norm(part) not in {norm(p) for p in out}:
             out.append(part)
     return out or [clean(value)]
@@ -193,14 +216,22 @@ def apercu(args):
         for tag in ("ARTIST", "ALBUMARTIST"):
             for value in tags.get(tag, []):
                 counts[norm(value)][value] += 1
+    forced, aliases = load_spellings(args.orthographes or os.path.join(HERE, "orthographes.txt"))
+    for alias, target in aliases.items():
+        # "Kat De Luna => Kat DeLuna": both spellings end up in one group
+        if alias in counts:
+            counts[norm(target)].update(counts.pop(alias))
     canonical = {}
     spelling_groups = []
     for key, spellings in counts.items():
-        if len(spellings) > 1:
-            best = max(spellings.items(),
-                       key=lambda kv: (kv[1], kv[0] != kv[0].lower(), kv[0] != kv[0].upper()))[0]
+        if len(spellings) > 1 or key in forced:
+            best = forced.get(key) or max(spellings.items(),
+                                          key=lambda kv: (kv[1], kv[0] != kv[0].lower(), kv[0] != kv[0].upper()))[0]
             canonical[key] = best
-            spelling_groups.append((best, spellings))
+            if len(spellings) > 1 or best not in spellings:
+                spelling_groups.append((best, spellings))
+    for alias, target in aliases.items():
+        canonical[alias] = canonical.get(norm(target), target)
     for path, tags in new.items():
         for tag in ("ARTIST", "ALBUMARTIST"):
             if tags.get(tag):
@@ -303,7 +334,8 @@ def apercu(args):
     lines += ["", f"Plan complet (ouvrable dans un tableur, separateur ';') : {plan}",
               "Pour NE PAS appliquer une correction : supprime sa ligne dans plan.csv avant 'appliquer'.",
               "Pour garder un nom avec une virgule entier : ajoute-le dans exceptions_artistes.txt (a cote du"
-              " script) puis relance 'apercu'."]
+              " script) puis relance 'apercu'.",
+              "Pour imposer une ecriture : ajoute-la dans orthographes.txt (a cote du script) puis relance 'apercu'."]
     report = "\n".join(lines)
     with open(os.path.join(out, "RESUME-corrections.txt"), "w", encoding="utf-8") as f:
         f.write(report + "\n")
@@ -406,6 +438,7 @@ def main():
     p.add_argument("racine")
     p.add_argument("--sortie")
     p.add_argument("--exceptions", help="fichier de noms a ne jamais couper (un par ligne)")
+    p.add_argument("--orthographes", help="fichier des ecritures imposees (par defaut orthographes.txt a cote du script)")
     p = sub.add_parser("appliquer", help="applique plan.csv (avec sauvegarde)")
     p.add_argument("plan")
     p.add_argument("--oui", action="store_true", help="ne pas demander de confirmation")
