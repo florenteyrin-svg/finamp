@@ -160,7 +160,18 @@ class AndroidAutoHelper {
       includeItemTypes: includeItemTypes.jellyfinName,
       limit: onlineModeLimit,
     );
-    return (items ?? []).where(isLocal).toList();
+    var result = (items ?? []).where(isLocal).toList();
+    // an album's tracks: only the ones of that very album (never tracks of another album mixed in)
+    if (itemId.contentType == ContentType.albums && itemId.parentType == MediaItemParentType.collection) {
+      final own = result.where((track) => track.albumId == itemId.itemId).toList();
+      if (own.isNotEmpty && own.length != result.length) {
+        _androidAutoHelperLogger.warning(
+          "Album ${itemId.itemId}: ${result.length - own.length} tracks of other albums left out",
+        );
+        result = own;
+      }
+    }
+    return result;
   }
 
   /// Android Auto's "For you" tab: the library playlists (smart playlists included), then the favourite albums.
