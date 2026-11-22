@@ -135,13 +135,27 @@ class MusicAssistantService {
   /// uses the same ids), in this order from the first one, then moves to [startPosition].
   Future<void> play(String playerId, List<String> trackIds, Duration startPosition) =>
       _withConnection((connection) async {
-        await connection.call("player_queues/play_media", {
-          "queue_id": playerId,
-          "media": [for (final id in trackIds) "jellyfin://track/$id"],
-          "option": "replace",
-          // Without this, the player's own shuffle setting would mix the list and start on another track
-          "shuffle": false,
-        });
+        // The first tracks start the music at once (Music Assistant looks each track up on Jellyfin, which can be
+        // slow, e.g. while Jellyfin scans the library); the rest of the queue follows in small batches.
+        const firstBatch = 5;
+        const batch = 50;
+        for (var attempt = 1; ; attempt++) {
+          try {
+            await connection.call("player_queues/play_media", {
+              "queue_id": playerId,
+              "media": [for (final id in trackIds.take(firstBatch)) "jellyfin://track/$id"],
+              "option": "replace",
+              // Without this, the player's own shuffle setting would mix the list and start on another track
+              "shuffle": false,
+            });
+            break;
+          } catch (e) {
+            // Jellyfin busy (library scan): one more try a moment later
+            if (attempt >= 2) rethrow;
+            log("play_media: $e, trying again");
+            await Future<void>.delayed(const Duration(seconds: 3));
+          }
+        }
         // A start position is refused for a list of tracks: seek once the first one plays
         if (startPosition > const Duration(seconds: 3)) {
           await Future<void>.delayed(const Duration(milliseconds: 2500));
@@ -149,6 +163,18 @@ class MusicAssistantService {
             await connection.call("players/cmd/seek", {"player_id": playerId, "position": startPosition.inSeconds});
           } catch (e) {
             log("seek: $e");
+          }
+        }
+        for (var start = firstBatch; start < trackIds.length; start += batch) {
+          try {
+            await connection.call("player_queues/play_media", {
+              "queue_id": playerId,
+              "media": [for (final id in trackIds.skip(start).take(batch)) "jellyfin://track/$id"],
+              "option": "add",
+            });
+          } catch (e) {
+            // a track Music Assistant can't find only drops that batch, the music keeps playing
+            log("queue batch $start: $e");
           }
         }
       });
